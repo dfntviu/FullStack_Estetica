@@ -1,0 +1,96 @@
+#diagnostico,
+#selector-consultas {
+    border-top: 3px solid var(--color-area);
+}
+
+/* Resumen de la maestra: número grande en tinta de texto, etiqueta pequeña encima */
+.dato {
+    display: inline-flex;
+    flex-direction: column;
+    min-width: 7.5rem;
+    padding: 0.5rem 0.8rem;
+    border: 1px solid var(--color-borde);
+    border-radius: 8px;
+    background: var(--color-superficie);
+    color: var(--color-texto);
+    font-size: 1.15rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+.dato .etiqueta {
+    color: var(--color-texto-suave);
+    font-size: 0.78rem;
+    font-weight: 400;
+}
+
+/* Las vencidas llaman la atención con ícono + texto, no solo con color */
+.dato.alerta {
+    border-color: var(--paleta-aviso);
+    background: var(--paleta-dorado-200);
+}
+
+.tabla-maestra {
+    max-height: 32rem;
+    overflow-y: auto;
+}
+
+.tabla-maestra thead th {
+    position: sticky;
+    top: 0;
+    background: var(--color-superficie);
+    z-index: 1;
+}
+
+td.text-end,
+th.text-end {
+    font-variant-numeric: tabular-nums;
+}
+
+/* Cada celda en una línea (nombre arriba, folio/clave abajo): leer "Sin / asignar / sin /
+   empleado…" partido en 4 renglones obligaba a reconstruir la fila. Los encabezados sí pueden
+   partirse; si la tabla no cabe, se desplaza dentro de la tarjeta. */
+.tabla-maestra td {
+    white-space: nowrap;
+}
+
+.tabla-maestra table {
+    font-size: 0.875rem;
+}
+
+.tabla-maestra th {
+    vertical-align: bottom;
+    letter-spacing: 0;
+    font-size: 0.72rem; /* el tema fija su propio tamaño en los encabezados: no heredan el de la tabla */
+}
+
+/* Números que llevan al detalle: subrayados, como enlaces */
+.numero {
+    font-variant-numeric: tabular-nums;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.numero.vencidas {
+    color: var(--paleta-dorado-700); /* el amarillo de aviso no alcanza contraste sobre blanco */
+    font-weight: 600;
+}
+
+/* Cada opción: toda la fila responde al clic y lo indica con la mano */
+.opcion {
+    cursor: pointer;
+    transition: background-color var(--transicion, 0.2s);
+}
+
+.opcion:hover {
+    background: var(--color-superficie-alt);
+}
+
+.opcion.marcada {
+    background: var(--color-area-suave);
+}
+
+.opcion .form-check-input {
+    cursor: pointer;
+    flex-shrink: 0;
+}

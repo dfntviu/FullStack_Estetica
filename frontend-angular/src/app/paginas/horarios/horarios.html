@@ -1,0 +1,53 @@
+<main class="container">
+  <h1 class="text-center">Horarios Disponibles</h1>
+  <p class="text-center text-muted">
+    Lunes a viernes de 09:00 a 19:00 · Sábados de 09:00 a 14:30 · Domingos cerrado · Turnos de 30 minutos
+  </p>
+
+  <form
+    id="form-disponibilidad"
+    class="form-estetica mx-auto row g-2 align-items-end"
+    novalidate
+    (submit)="$event.preventDefault(); consultar(dia.value)"
+  >
+    <div class="col-sm-8">
+      <label for="dia" class="form-label">Día a consultar</label>
+      <!-- (change) y no Reactive Forms: un solo campo y una consulta por fecha elegida, no por tecla -->
+      <input
+        #dia
+        type="date"
+        class="form-control"
+        id="dia"
+        name="dia"
+        required
+        [min]="hoy"
+        [value]="fecha()"
+        (change)="consultar(dia.value)"
+      />
+    </div>
+    <div class="col-sm-4 d-grid">
+      <button type="submit" class="btn btn-primary" [disabled]="disponibilidad.isLoading()">
+        {{ disponibilidad.isLoading() ? 'Consultando…' : 'Ver disponibilidad' }}
+      </button>
+    </div>
+  </form>
+
+  <div class="form-estetica mx-auto mt-3">
+    <div id="aviso-horarios" aria-live="polite">
+      @if (resultado(); as r) {
+        <app-aviso [tipo]="r.tipo" [texto]="r.texto" [conReintentar]="r.reintentar" (reintentar)="disponibilidad.reload()" />
+      }
+    </div>
+
+    <div id="sugerencias" [attr.aria-busy]="disponibilidad.isLoading()">
+      @if (resultado(); as r) {
+        @if (r.horarios.length) {
+          <h2 class="h6 mt-3">Elige un horario para agendar:</h2>
+          @for (h of r.horarios; track h) {
+            <a class="btn btn-outline-primary btn-sm m-1" routerLink="/agendar" [queryParams]="{ fecha: r.fecha, hora: h }">{{ h }}</a>
+          }
+        }
+      }
+    </div>
+  </div>
+</main>

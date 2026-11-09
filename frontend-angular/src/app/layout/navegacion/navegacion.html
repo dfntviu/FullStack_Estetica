@@ -1,0 +1,33 @@
+<nav id="app-nav" class="navbar navbar-expand-lg bg-body-tertiary border-bottom" aria-label="Navegación principal">
+  <div class="container">
+    <a class="navbar-brand fw-bold" routerLink="/" (click)="cerrarMenu()">Estética Miss Name</a>
+    <button
+      type="button"
+      class="navbar-toggler"
+      aria-controls="menu-principal"
+      [attr.aria-expanded]="menuAbierto()"
+      [attr.aria-label]="menuAbierto() ? 'Cerrar menú' : 'Abrir menú'"
+      (click)="alternarMenu()"
+    >
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div id="menu-principal" class="collapse navbar-collapse" [class.show]="menuAbierto()">
+      <ul class="navbar-nav ms-auto">
+        @for (e of enlaces; track e.ruta) {
+          <li class="nav-item">
+            <a
+              class="nav-link"
+              [routerLink]="e.ruta"
+              routerLinkActive="active fw-semibold"
+              [routerLinkActiveOptions]="{ exact: e.ruta === '/' }"
+              ariaCurrentWhenActive="page"
+              (click)="cerrarMenu()"
+            >
+              <i class="fa-solid {{ e.icono }} me-1" aria-hidden="true"></i>{{ e.texto }}
+            </a>
+          </li>
+        }
+      </ul>
+    </div>
+  </div>
+</nav>

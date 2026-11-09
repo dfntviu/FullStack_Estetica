@@ -1,0 +1,41 @@
+nombre,telefono,fecha_ingreso,activo
+Sandra Guerrero Sánchez,7242000001,2026-06-22,true
+Manuel Silva Jiménez,7242000002,2023-05-21,true
+Silvia Maldonado León,7242000003,2026-01-01,true
+Isabel Ochoa Ortiz,7242000004,2023-04-03,true
+Andrés Chávez García,7242000005,2021-06-06,true
+Ricardo Sandoval Díaz,7242000006,2023-11-25,true
+Sofía Cervantes Chávez,7242000007,2020-04-29,true
+Verónica Jiménez Pérez,7242000008,2024-10-20,true
+Miguel García Hernández,7242000009,2022-07-02,true
+Beatriz Rojas Herrera,7242000010,2026-05-28,true
+Daniel Ramírez Chávez,7242000011,2021-02-26,true
+Roberto Herrera Pacheco,7242000012,2021-01-17,false
+Daniela Martínez Medina,7242000013,2020-02-18,true
+Óscar Rojas Vega,7242000014,2020-06-26,false
+Óscar Torres Castro,7242000015,2023-12-21,true
+Luisa Rodríguez Chávez,7242000016,2019-07-18,true
+Beatriz Gómez Rivera,7242000017,2025-02-16,true
+Luisa Vega Díaz,7242000018,2019-02-20,true
+Juan Pablo Gómez Romero,7242000019,2023-11-22,true
+Marco Vázquez Rojas,7242000020,2019-11-13,true
+Ulises Romero Peña,7242000021,2021-12-24,true
+Víctor Gutiérrez Flores,7242000022,2025-10-19,true
+Itzel Bautista Ochoa,7242000023,2025-11-07,true
+Natalia Rodríguez Soto,7242000024,2021-12-09,true
+Víctor Martínez Díaz,7242000025,2023-01-11,true
+Itzel Gutiérrez Contreras,7242000026,2025-10-25,true
+Luis Ríos Hernández,7242000027,2026-03-03,false
+Norma Peña Medina,7242000028,2025-11-04,true
+Marcela Suárez Sandoval,7242000029,2023-11-05,true
+Lorena Orozco León,7242000030,2023-01-13,false
+Luisa Salazar Gómez,7242000031,2024-05-25,false
+Alicia Pacheco Álvarez,7242000032,2022-04-25,true
+Ana Sofía Contreras Romero,7242000033,2022-09-23,true
+Itzel Aguilar Estrada,7242000034,2021-06-19,false
+Ana Sofía Rivera Juárez,7242000035,2025-12-15,true
+Ximena Núñez Moreno,7242000036,2026-02-11,true
+Carolina Suárez Luna,7242000037,2021-08-03,false
+Daniel Salazar Salazar,7242000038,2019-10-28,true
+Martín Bautista Cruz,7242000039,2023-12-17,true
+Andrés Rojas Romero,7242000040,2022-03-27,true

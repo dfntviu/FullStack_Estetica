@@ -1,0 +1,19 @@
+<fieldset class="selector-tema">
+  <legend>¿Con qué ánimo trabajamos hoy?</legend>
+  <p class="ayuda">Elige la personalidad del sistema. Se recuerda en este equipo.</p>
+  <div class="opciones">
+    @for (t of temas; track t.id) {
+      <label class="opcion" [class.elegida]="tema.actual() === t.id">
+        <input type="radio" name="tema" [value]="t.id" [checked]="tema.actual() === t.id" (change)="elegir(t.id)" />
+        <span class="muestras" aria-hidden="true">
+          @for (c of t.muestras; track $index) {
+            <span class="muestra" [style.background-color]="c"></span>
+          }
+        </span>
+        <span class="nombre">{{ t.nombre }}</span>
+        <span class="animo">{{ t.animo }}</span>
+        <span class="descripcion">{{ t.descripcion }}</span>
+      </label>
+    }
+  </div>
+</fieldset>

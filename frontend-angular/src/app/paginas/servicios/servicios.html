@@ -1,0 +1,31 @@
+<main class="container">
+  <h1 class="text-center mb-4">Nuestros Servicios</h1>
+
+  <div id="estado-servicios" class="mb-3" aria-live="polite">
+    @if (catalogo.isLoading()) {
+      <app-aviso tipo="secondary" texto="Cargando servicios…" />
+    } @else if (catalogo.error()) {
+      <app-aviso tipo="danger" [texto]="mensajeError()" [conReintentar]="true" (reintentar)="catalogo.reload()" />
+    } @else if (catalogo.hasValue() && !catalogo.value().length) {
+      <app-aviso tipo="warning" texto="No hay servicios disponibles por ahora." />
+    }
+  </div>
+
+  <div id="lista-servicios" class="row g-4">
+    @if (catalogo.hasValue()) {
+      @for (s of catalogo.value(); track s.id) {
+        <div class="col-sm-6 col-lg-4">
+          <article class="card h-100 shadow-sm">
+            <img class="card-img-top servicio-img" [src]="s.imagen" [alt]="s.nombre" loading="lazy" />
+            <div class="card-body d-flex flex-column">
+              <h2 class="h5 card-title">{{ s.nombre }}</h2>
+              <p class="card-text fs-5 text-success">{{ s.costo | moneda }}</p>
+              <!-- Antes un <button> que navegaba desde el controlador (H-5): ahora es un enlace real. -->
+              <a class="btn btn-primary mt-auto" routerLink="/agendar" [queryParams]="{ servicio: s.id }">Agendar cita</a>
+            </div>
+          </article>
+        </div>
+      }
+    }
+  </div>
+</main>

@@ -1,0 +1,5 @@
+/* Cliente reconocido al agendar (antes en tema-estetica.css). Encapsulado: solo esta página. */
+#clienteEncontrado.text-success {
+    color: var(--color-exito) !important;
+    font-weight: 500;
+}

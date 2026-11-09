@@ -1,0 +1,212 @@
+===============================================================================
+ REPORTE DE CAMBIOS - CITAS ESTÉTICA MISS NAME (STACK NATIVO, MVC)
+ Fecha: 2 de noviembre de 2026
+===============================================================================
+
+Este reporte cubre tres cosas:
+  A. Las dos últimas correcciones del sistema (parche del 2 de noviembre).
+  B. Las dos vistas nuevas: Clientes y Empleados.
+  C. El estado del sistema corregido y las pruebas ejecutadas.
+
+-------------------------------------------------------------------------------
+ A. CORRECCIONES DEL SISTEMA
+-------------------------------------------------------------------------------
+
+A.1  Horario ocupado mostrado como libre / cita duplicada o perdida
+     Síntoma:
+       - Una pestaña abierta antes de agendar en otra seguía ofreciendo como
+         libre un horario ya tomado.
+       - Al guardar desde esa pestaña, se sobrescribía la cita de la otra y
+         se repetía el folio (ambas quedaban como A010).
+     Causa (error de implementación, no del diseño original):
+       CitasModel leía localStorage UNA sola vez, al cargar la página, y
+       después trabajaba con esa copia en memoria.
+     Corrección:
+       - El modelo vuelve a leer el almacén en cada operación; localStorage
+         es la única fuente de verdad.
+       - almacen.js expone suscribir(): escucha el evento "storage" del
+         navegador, que avisa cuando OTRA pestaña cambia los datos.
+       - Agendar, Horarios y Verificar se refrescan solos con ese aviso.
+       - Si el turno se ocupa mientras se llena el formulario, se muestra el
+         motivo y se recalculan las horas libres.
+     Archivos: source/services/almacen.js, source/model/CitasModel.js,
+               source/controllers/iniciarCita.controller.js,
+               source/controllers/horarios.controller.js,
+               source/controllers/cotejarCita.controller.js,
+               source/views/iniciarCita.view.js
+
+A.2  "El cliente no puede pagar: solo ve el costo"
+     Causa:
+       - La regla solo permitía cobrar citas CONFIRMADAS.
+       - El error se pintaba en el campo "Folio", arriba del formulario,
+         donde no se veía; parecía que el botón no hacía nada.
+     Corrección:
+       - Se puede cobrar una cita pendiente o confirmada (si el cliente está
+         en la estética, ya llegó). Las citas canceladas o terminadas siguen
+         bloqueadas.
+       - Cualquier error de formulario mueve el foco al primer campo con error
+         y lo marca con aria-invalid.
+     Archivos: source/model/CitasModel.js, source/views/dom.js
+
+-------------------------------------------------------------------------------
+ B. VISTAS NUEVAS (MISMO PATRÓN MVC)
+-------------------------------------------------------------------------------
+
+B.1  CLIENTES  (views/clientes.html)
+     Modelo:       source/model/ClientesModel.js
+     Vista:        source/views/clientes.view.js
+     Controlador:  source/controllers/clientes.controller.js
+     Semilla:      Layouts/data/clientes.js
+
+     Campos: ID automático (C001...), nombre completo, teléfono (10 dígitos,
+             ÚNICO), fecha de registro automática, cumpleaños DD/MM
+             (opcional), observaciones (opcional, máx. 300 caracteres).
+
+     Funciones:
+       - Registrar cliente.
+       - Consultar con búsqueda por nombre (sin importar acentos) o teléfono,
+         con filtro "mostrar dados de baja".
+       - Editar datos (el teléfono sigue siendo único al editar).
+       - Dar de baja / reactivar: baja LÓGICA, el historial se conserva.
+       - Historial de servicios: citas del cliente (más reciente primero),
+         total gastado, última visita, próxima cita y servicio más frecuente,
+         con botón "Agendar cita".
+
+     Ajustes aplicados a tu especificación original:
+       - "Eliminar cliente" se cambió por baja lógica. Borrar al cliente
+         dejaría sus citas y cobros sin dueño y rompería el historial.
+       - El cumpleaños se guarda solo como día y mes.
+       - Observaciones está orientado a notas técnicas (fórmula de tinte,
+         tipo de cabello).
+
+     Integración con el resto del sistema:
+       - Cada cita guarda clienteId. Al agendar se escribe primero el
+         teléfono: si existe, se completa el nombre (y se reactiva al cliente
+         si estaba de baja); si no, el cliente se crea al registrar la cita.
+       - Si la cita no es válida (domingo, horario ocupado...), NO se crea
+         ningún cliente huérfano.
+       - Editar el nombre de un cliente se refleja en sus citas.
+       - En Verificar ya se puede buscar por teléfono.
+       - Las citas de ejemplo de "María Gómez" (A001 y A007) son ahora del
+         mismo cliente (C001).
+       - Migración automática: las citas guardadas con la versión anterior
+         (sin clienteId) se ligan a un cliente por teléfono o por nombre.
+
+B.2  EMPLEADOS  (views/empleados.html)
+     Modelo:       source/model/EmpleadosModel.js
+     Vista:        source/views/empleados.view.js
+     Controlador:  source/controllers/empleados.controller.js
+     Semilla:      Layouts/data/empleados.js
+
+     Campos: ID automático (E001...), nombre completo, teléfono (10 dígitos,
+             único), fecha de ingreso (no futura), estado activo/inactivo.
+             La antigüedad se calcula sola (p. ej. "2 años, 3 meses").
+
+     Funciones:
+       - Registrar empleado.
+       - Consultar con búsqueda y filtro activos / inactivos / todos.
+       - Editar datos personales.
+       - Dar de baja (queda inactivo, sin borrar sus datos) y reactivar.
+
+     Ajuste aplicado: se quitó "Dirección". Ningún flujo la usa y es un dato
+     personal que no hace falta guardar.
+
+     Limitación conocida: Empleados aún no se relaciona con las citas. El
+     siguiente paso natural es asignar cada cita a un estilista y permitir
+     varias citas a la misma hora (una por estilista).
+
+B.3  Código compartido y navegación
+     - source/model/validaciones.js: normalizar, teléfono, nombre, cumpleaños
+       y generación de ids. Lo usan los tres modelos; antes la validación del
+       teléfono estaba duplicada.
+     - La barra de navegación y el dashboard incluyen Clientes y Empleados.
+
+-------------------------------------------------------------------------------
+ C. ESTADO DEL SISTEMA CORREGIDO
+-------------------------------------------------------------------------------
+
+Vistas operativas (8): Inicio, Servicios, Horarios, Agendar, Verificar,
+                       Cobrar, Clientes, Empleados.
+
+Flujo principal verificado:
+  Servicios -> Agendar (reconoce al cliente por teléfono) -> Horarios ->
+  Verificar (folio, nombre o teléfono) -> Confirmar / Cancelar ->
+  Cobrar (pendiente o confirmada) -> Historial del cliente actualizado.
+
+Pruebas ejecutadas (resultados reales):
+
+  1) Pruebas del modelo:  npm test  (node:test, sin dependencias)
+       tests/modelo.test.js ................ 9 casos
+       tests/clientes-empleados.test.js .... 12 casos
+       Resultado: 21 / 21 aprobadas.
+     Incluyen: horarios y traslapes, cambio, transiciones de estado, cobro,
+     persistencia, dos pestañas simultáneas, teléfono único, baja lógica,
+     reactivación al agendar, cero clientes huérfanos, historial y métricas,
+     migración de datos v1, filtros y antigüedad de empleados.
+
+  2) Recorrido en navegador real (Chromium + Playwright, servidor local):
+       Flujo de citas (regresión) ..................... 17 / 17
+       Clientes, Empleados e integración con citas ..... 27 / 27
+     Incluyen: validaciones por campo, teléfono duplicado, búsquedas, edición,
+     baja/reactivación, historial con total gastado, alta automática de
+     cliente al agendar, búsqueda por teléfono en Verificar, refresco
+     automático entre dos pestañas, inyección de HTML pintada como texto,
+     vista móvil (390 px) y consola sin errores JS.
+
+  Nota: el script de navegador usa fechas de noviembre de 2026 y no forma
+  parte del proyecto entregado. Las pruebas de npm test fijan el reloj y no
+  caducan.
+
+Riesgos y pendientes:
+  - Los datos viven en el localStorage de cada navegador: dos computadoras
+    no comparten información hasta que exista un backend (los .php siguen
+    vacíos).
+  - No hay usuarios ni permisos: cualquiera con acceso puede cobrar, dar de
+    baja o editar.
+  - Lista de cobros / corte de caja: pendiente (los datos ya se guardan).
+  - Todos los servicios duran un turno de 30 min; un tinte real ocupa más.
+  - El límite de 27 citas por día nunca se alcanza: con un turno por cita, el
+    máximo real son 20.
+  - Datos personales (teléfono, cumpleaños, observaciones): en un sistema
+    real se requiere aviso de privacidad (LFPDPPP).
+
+-------------------------------------------------------------------------------
+ ARCHIVOS NUEVOS
+-------------------------------------------------------------------------------
+  Layouts/data/clientes.js
+  Layouts/data/empleados.js
+  source/model/validaciones.js
+  source/model/ClientesModel.js
+  source/model/EmpleadosModel.js
+  source/views/clientes.view.js
+  source/views/empleados.view.js
+  source/controllers/clientes.controller.js
+  source/controllers/empleados.controller.js
+  views/clientes.html
+  views/empleados.html
+  tests/clientes-empleados.test.js
+  README.md
+  REPORTE_CAMBIOS.txt
+
+-------------------------------------------------------------------------------
+ ARCHIVOS MODIFICADOS
+-------------------------------------------------------------------------------
+  app.js                                   compone Clientes y Empleados
+  Layouts/data/citas.js                    citas con clienteId
+  Layouts/dashboard.html                   tarjetas nuevas
+  assets/css/estilo_dashboard.css          estilos de listados
+  source/services/almacen.js               suscribir() (corrección A.1)
+  source/model/CitasModel.js               A.1, A.2, clienteId, historial,
+                                           migración, búsqueda por teléfono
+  source/model/reglasAgenda.js             usa validaciones.js
+  source/views/dom.js                      foco en errores, formatoTelefono
+  source/views/navegacion.view.js          enlaces nuevos
+  source/views/iniciarCita.view.js         reconocimiento por teléfono
+  source/controllers/iniciarCita.controller.js
+  source/controllers/cotejarCita.controller.js
+  source/controllers/horarios.controller.js
+  views/iniciar_cita.html                  teléfono primero, aviso de cliente
+  views/cotejar_cita.html                  búsqueda por teléfono
+  tests/modelo.test.js                     casos con clientes y dos pestañas
+  RECUPERACION.md                          bitácora actualizada
+===============================================================================

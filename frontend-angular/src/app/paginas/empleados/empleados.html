@@ -1,0 +1,154 @@
+<main class="container-xl">
+  <h1 class="text-center">Empleados</h1>
+  <p class="text-center text-muted">Información básica del personal. Dar de baja no borra datos: el empleado queda inactivo.</p>
+
+  <div class="row g-4">
+    <div class="col-lg-4">
+      <section class="card panel-sticky" aria-labelledby="tituloFormEmpleado">
+        <div class="card-body">
+          <h2 id="tituloFormEmpleado" class="h5">{{ editandoId() ? 'Editar empleado ' + editandoId() : 'Registrar empleado' }}</h2>
+          <form id="formEmpleado" novalidate [formGroup]="form" (ngSubmit)="guardar()">
+            <div class="mb-3">
+              <label for="empNombre" class="form-label">Nombre completo</label>
+              <input
+                type="text"
+                class="form-control"
+                id="empNombre"
+                formControlName="nombre"
+                autocomplete="off"
+                required
+                [class.is-invalid]="errores.de('nombre')"
+                [attr.aria-invalid]="errores.de('nombre') ? true : null"
+              />
+              <div class="invalid-feedback" data-error-for="nombre">{{ errores.de('nombre') }}</div>
+            </div>
+            <div class="mb-3">
+              <label for="empTelefono" class="form-label">Teléfono</label>
+              <input
+                type="tel"
+                class="form-control"
+                id="empTelefono"
+                formControlName="telefono"
+                placeholder="10 dígitos"
+                inputmode="numeric"
+                required
+                [class.is-invalid]="errores.de('telefono')"
+                [attr.aria-invalid]="errores.de('telefono') ? true : null"
+              />
+              <div class="invalid-feedback" data-error-for="telefono">{{ errores.de('telefono') }}</div>
+            </div>
+            <div class="mb-3">
+              <label for="fechaIngreso" class="form-label">Fecha de ingreso</label>
+              <input
+                type="date"
+                class="form-control"
+                id="fechaIngreso"
+                formControlName="fechaIngreso"
+                required
+                [max]="hoy"
+                [class.is-invalid]="errores.de('fechaIngreso')"
+                [attr.aria-invalid]="errores.de('fechaIngreso') ? true : null"
+              />
+              <div class="invalid-feedback" data-error-for="fechaIngreso">{{ errores.de('fechaIngreso') }}</div>
+            </div>
+            <div class="d-flex gap-2">
+              <button type="submit" id="btnGuardarEmpleado" class="btn btn-success flex-grow-1" [disabled]="ocupado()">
+                {{ ocupado() ? 'Guardando…' : editandoId() ? 'Guardar cambios' : 'Registrar empleado' }}
+              </button>
+              <button type="button" id="btnCancelarEdicionEmpleado" class="btn btn-outline-secondary" [hidden]="!editandoId()" (click)="salirDeEdicion()">
+                Cancelar
+              </button>
+            </div>
+          </form>
+          <div id="aviso-form-empleado" class="mt-3" aria-live="polite">
+            @if (avisoForm(); as a) {
+              <app-aviso [tipo]="a.tipo" [texto]="a.texto" />
+            }
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div class="col-lg-8">
+      <section aria-labelledby="tituloListaEmpleados">
+        <h2 id="tituloListaEmpleados" class="visually-hidden">Listado de empleados</h2>
+        <div class="row g-2 align-items-center mb-2">
+          <div class="col-sm-6">
+            <label for="buscarEmpleado" class="visually-hidden">Buscar empleado</label>
+            <input type="search" class="form-control" id="buscarEmpleado" placeholder="Buscar por nombre o teléfono" [formControl]="busqueda" />
+          </div>
+          <div class="col-sm-4">
+            <label for="filtroEstado" class="visually-hidden">Estado</label>
+            <select class="form-select" id="filtroEstado" [formControl]="estado">
+              <option value="activos">Activos</option>
+              <option value="inactivos">Inactivos</option>
+              <option value="todos">Todos</option>
+            </select>
+          </div>
+          <div class="col-sm-2 text-sm-end"><small id="contadorEmpleados" class="text-muted">{{ contador() }}</small></div>
+        </div>
+
+        <div id="aviso-empleados" class="mb-2" aria-live="polite">
+          @if (avisoLista(); as a) {
+            <app-aviso [tipo]="a.tipo" [texto]="a.texto" />
+          }
+        </div>
+
+        <div class="table-responsive">
+          <table class="table table-hover align-middle bg-white">
+            <thead>
+              <tr>
+                <th scope="col">ID</th>
+                <th scope="col">Nombre</th>
+                <th scope="col">Teléfono</th>
+                <th scope="col">Ingreso</th>
+                <th scope="col">Antigüedad</th>
+                <th scope="col">Estado</th>
+                <th scope="col">Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="tablaEmpleados" [attr.aria-busy]="lista.isLoading()">
+              @if (errorLista(); as e) {
+                <tr>
+                  <td class="text-danger" colspan="7">
+                    {{ e }}
+                    <button type="button" class="btn btn-sm btn-outline-danger ms-2" (click)="lista.reload()">Reintentar</button>
+                  </td>
+                </tr>
+              } @else if (lista.hasValue()) {
+                @for (e of lista.value(); track e.id) {
+                  <tr [class.table-light]="!e.activo" [class.text-muted]="!e.activo" [attr.data-empleado]="e.id">
+                    <td>{{ e.id }}</td>
+                    <td class="fw-semibold">{{ e.nombre }}</td>
+                    <td class="text-nowrap">{{ e.telefono | telefono }}</td>
+                    <td class="text-nowrap">{{ e.fechaIngreso }}</td>
+                    <td>{{ e.antiguedad }}</td>
+                    <td>
+                      <span class="badge" [class.text-bg-success]="e.activo" [class.text-bg-secondary]="!e.activo">{{ e.activo ? 'activo' : 'inactivo' }}</span>
+                    </td>
+                    <td class="text-nowrap">
+                      <div class="d-flex gap-1">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" [attr.aria-label]="'Editar a ' + e.nombre" (click)="editar(e)">Editar</button>
+                        @if (e.activo) {
+                          <button type="button" class="btn btn-sm btn-outline-danger" [attr.aria-label]="'Dar de baja a ' + e.nombre" (click)="darDeBaja(e)">Baja</button>
+                        } @else {
+                          <button type="button" class="btn btn-sm btn-outline-success" [attr.aria-label]="'Reactivar a ' + e.nombre" (click)="reactivar(e)">
+                            Reactivar
+                          </button>
+                        }
+                      </div>
+                    </td>
+                  </tr>
+                } @empty {
+                  <tr>
+                    <td colspan="7" class="text-center text-muted">Sin resultados.</td>
+                  </tr>
+                }
+              }
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>

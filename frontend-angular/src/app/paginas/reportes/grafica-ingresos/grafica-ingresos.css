@@ -1,0 +1,105 @@
+/* Colores de serie validados (scripts/validate_palette.js de la guía de visualización):
+   barras = magenta de la marca, línea = azul. El texto usa tokens de texto, nunca el color de la serie. */
+:host {
+    --serie-ingresos: #a8405f;
+    --serie-promedio: #2a78d6;
+    display: block;
+}
+
+.lienzo {
+    position: relative;
+}
+
+svg {
+    display: block;
+    width: 100%;
+    height: auto;
+    overflow: visible;
+}
+
+.cuadricula {
+    stroke: var(--color-borde);
+    stroke-width: 1;
+}
+
+.eje {
+    fill: var(--color-texto-suave);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+}
+
+.barra {
+    fill: var(--serie-ingresos);
+}
+
+.linea {
+    fill: none;
+    stroke: var(--serie-promedio);
+    stroke-width: 2;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+}
+
+.resalte {
+    fill: var(--color-superficie-alt);
+}
+
+.zona {
+    fill: transparent;
+    cursor: crosshair;
+}
+
+.tooltip-grafica {
+    position: absolute;
+    top: 8px;
+    transform: translateX(12px);
+    pointer-events: none;
+    background: var(--color-superficie);
+    border: 1px solid var(--color-borde-fuerte);
+    border-radius: 6px;
+    box-shadow: var(--sombra-sm, 0 2px 6px rgb(0 0 0 / 0.12));
+    padding: 0.4rem 0.6rem;
+    font-size: 0.85rem;
+    color: var(--color-texto);
+    white-space: nowrap;
+    z-index: 2;
+}
+
+.tooltip-grafica.a-la-izquierda {
+    transform: translateX(calc(-100% - 12px));
+}
+
+.leyenda {
+    color: var(--color-texto-suave);
+    font-size: 0.9rem;
+}
+
+.muestra {
+    display: inline-block;
+    vertical-align: middle;
+    margin-right: 0.35rem;
+}
+
+.muestra.barra {
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    background: var(--serie-ingresos);
+}
+
+.muestra.linea {
+    width: 14px;
+    height: 2px;
+    background: var(--serie-promedio);
+}
+
+.tabla-dias {
+    max-height: 18rem;
+    overflow-y: auto;
+}
+
+summary {
+    color: var(--color-enlace);
+    cursor: pointer;
+    font-size: 0.9rem;
+}

@@ -1,0 +1,65 @@
+%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#fbeff3", "primaryBorderColor": "#a8405f", "primaryTextColor": "#2b2427", "lineColor": "#7d5f22", "fontFamily": "Segoe UI, Arial, sans-serif", "fontSize": "14px"}}}%%
+erDiagram
+    CLIENTE ||--o{ CITA : "agenda"
+    SERVICIO ||--o{ CITA : "se reserva en"
+    EMPLEADO |o--o{ CITA : "atiende (opcional)"
+    CITA |o--o| COBRO : "se liquida con"
+    CLIENTE |o--o{ COBRO : "paga (NULL = de paso)"
+    SERVICIO ||--o{ COBRO : "se cobra en"
+
+    SERVICIO {
+        integer id PK
+        varchar clave UK "slug: corte-normal"
+        varchar nombre UK
+        numeric costo "CHECK > 0"
+        varchar imagen
+        boolean activo "baja lógica"
+    }
+
+    CLIENTE {
+        integer id PK
+        varchar folio UK "C001 (generado)"
+        varchar nombre "min. 3 caracteres"
+        char telefono UK "10 dígitos"
+        char cumpleanos "DD/MM, opcional"
+        varchar observaciones "max. 300"
+        date fecha_registro
+        boolean activo "baja lógica"
+    }
+
+    EMPLEADO {
+        integer id PK
+        varchar folio UK "E001 (generado)"
+        varchar nombre
+        char telefono UK "10 dígitos"
+        date fecha_ingreso
+        boolean activo "baja lógica"
+    }
+
+    CITA {
+        integer id PK
+        varchar folio UK "A001 (generado)"
+        integer cliente_id FK
+        integer servicio_id FK
+        integer empleado_id FK "NULL permitido"
+        date fecha "sin domingos"
+        time hora "09:00-18:30, cada 30 min"
+        numeric precio "congelado al agendar"
+        estado_cita estado "pendiente|confirmada|cancelada|terminada"
+        timestamptz creada_en
+    }
+
+    COBRO {
+        integer id PK
+        varchar folio UK "V0001 (generado)"
+        integer cita_id FK, UK "1:0..1, NULL permitido"
+        integer cliente_id FK "NULL = cliente de paso"
+        varchar nombre_cliente "copia al cobrar"
+        integer servicio_id FK
+        numeric total "congelado al cobrar"
+        metodo_pago metodo "efectivo|tarjeta|transferencia"
+        numeric pagado
+        numeric cambio "generado: pagado - total"
+        varchar referencia "obligatoria en transferencia"
+        timestamptz fecha_hora
+    }

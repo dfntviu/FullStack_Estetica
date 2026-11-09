@@ -1,0 +1,57 @@
+:host {
+    display: block;
+}
+
+.tarjeta-consulta {
+    border-top: 3px solid var(--color-area);
+    scroll-margin-top: 1rem;
+}
+
+.conteo {
+    font-variant-numeric: tabular-nums;
+}
+
+.resultados {
+    max-height: 28rem;
+    overflow-y: auto;
+}
+
+.resultados td {
+    white-space: nowrap;
+}
+
+.resultados thead th {
+    position: sticky;
+    top: 0;
+    background: var(--color-superficie);
+    z-index: 1;
+}
+
+td.text-end,
+th.text-end {
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.filtro {
+    color: var(--color-texto);
+}
+
+/* Lista vacía: es una respuesta, no un error */
+.vacio {
+    padding: 0.75rem 1rem;
+    border-radius: 6px;
+    background: var(--color-superficie-alt);
+    color: var(--color-texto);
+}
+
+.sql {
+    max-height: 22rem;
+    overflow: auto;
+    padding: 0.75rem 1rem;
+    border-radius: 6px;
+    background: var(--paleta-carbon-900);
+    color: #f5efe9;
+    font-size: 0.8rem;
+    line-height: 1.45;
+}

@@ -1,0 +1,19 @@
+<header class="hero-estetica text-center py-4">
+  <h1>Punto de Cita Estética</h1>
+  <p class="mb-0">Módulo de citas de la Estética Miss Name</p>
+</header>
+<main class="container">
+  <h2 class="h4 text-center mb-4">¿Qué quieres hacer?</h2>
+  <div class="row g-3">
+    @for (m of modulos; track m.ruta) {
+      <div class="col-sm-6 col-lg-4">
+        <a class="card tarjeta-modulo h-100 text-decoration-none p-3" [routerLink]="m.ruta">
+          <i class="fa-solid {{ m.icono }} fa-2x text-primary mb-2" aria-hidden="true"></i>
+          <span class="h5">{{ m.titulo }}</span>
+          <span class="text-muted">{{ m.descripcion }}</span>
+        </a>
+      </div>
+    }
+  </div>
+  <app-selector-tema/>
+</main>

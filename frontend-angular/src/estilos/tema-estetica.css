@@ -1,0 +1,777 @@
+/* =============================================================================
+   TEMA "ESTÉTICA MISS NAME": tres personalidades a elegir
+   -----------------------------------------------------------------------------
+   Cargar DESPUÉS de bootstrap.min.css y de base.css.
+
+   El dueño elige el tema según su ánimo (selector de la barra de navegación).
+   Se aplica con <html data-tema="platicador | comico | flexible">.
+
+   Organizado en 3 capas de tokens:
+     1. Paleta      → los colores de cada tema (lo ÚNICO que cambia entre temas)
+     2. Semánticos  → qué significa cada color en el sistema
+     3. Por área    → acento de cada vista, usando <body data-page="...">
+   Después, el puente a Bootstrap y el embellecimiento de los componentes.
+
+   Contraste verificado en los TRES temas (WCAG 2.1 AA, ≥ 4.5:1) para cada par de
+   texto y fondo: texto/fondo, texto suave/fondo y blanco, blanco/acción (500 y 600),
+   enlace/fondo y blanco, detalle-700/fondo y blanco, crema/pie (marca-700).
+   Los tonos claros de cada personalidad (mostaza, melocotón, terracota, azul sereno:
+   detalle 300/400, marca 200) son decorativos: bordes, líneas, fondos suaves.
+   Nunca son color de texto sobre crema o blanco.
+   ============================================================================= */
+
+
+/* -----------------------------------------------------------------------------
+   1. PALETA (una por tema; :root = predeterminado)
+   ----------------------------------------------------------------------------- */
+/* Estilista Platicador: conexión y empatía (rosa viejo + terracota suave). Tema predeterminado. */
+:root,
+[data-tema="platicador"] {
+    /* Marca: acción, enlaces, foco */
+    --paleta-marca-50:  #fbf0f2;
+    --paleta-marca-100: #f5dce2;
+    --paleta-marca-200: #e8bac6;
+    --paleta-marca-500: #a24f66;
+    --paleta-marca-600: #874055;
+    --paleta-marca-700: #6c3344;
+
+    /* Detalle: bordes, líneas, iconos (300/400 nunca son texto) */
+    --paleta-dorado-200: #f4dacd;
+    --paleta-dorado-300: #e5b29a;
+    --paleta-dorado-400: #cf8a6b;
+    --paleta-dorado-700: #8f4527;
+
+    /* Texto y contraste */
+    --paleta-carbon-900: #33252a;
+    --paleta-carbon-700: #4f3c43;
+    --paleta-carbon-600: #5f4a52;
+    --paleta-carbon-500: #6e5961;
+    --paleta-carbon-200: #e3d2d7;
+
+    /* Fondos */
+    --paleta-crema-50:  #fdf8f6;
+    --paleta-crema-100: #f8ece8;
+    --paleta-crema-200: #eedbd4;
+
+    /* Los mismos colores en "r, g, b" para las transparencias (foco, sombras, Bootstrap) */
+    --paleta-marca-500-rgb: 162, 79, 102;
+    --paleta-marca-600-rgb: 135, 64, 85;
+    --paleta-marca-700-rgb: 108, 51, 68;
+    --paleta-carbon-900-rgb: 51, 37, 42;
+    --paleta-carbon-600-rgb: 95, 74, 82;
+    --paleta-dorado-400-rgb: 207, 138, 107;
+
+    /* Gráfica de ingresos: barras y promedio, par validado para daltonismo */
+    --grafica-serie-1: #a24f66;
+    --grafica-serie-2: #2a78d6;
+}
+
+/* Estilista Cómico: energía y entusiasmo, en versión cálida y suave
+   (albaricoque tostado para la acción; durazno y mantequilla para fondos, bordes e iconos). */
+[data-tema="comico"] {
+    /* Marca: acción, enlaces, foco */
+    --paleta-marca-50:  #fff6ef;
+    --paleta-marca-100: #fde6d6;
+    --paleta-marca-200: #f8cfb2;
+    --paleta-marca-500: #a65a2e;
+    --paleta-marca-600: #8b4a25;
+    --paleta-marca-700: #703c1f;
+
+    /* Detalle: bordes, líneas, iconos (300/400 nunca son texto) */
+    --paleta-dorado-200: #f8ecc9;
+    --paleta-dorado-300: #efd596;
+    --paleta-dorado-400: #ddb866;
+    --paleta-dorado-700: #755714;
+
+    /* Texto y contraste */
+    --paleta-carbon-900: #33281f;
+    --paleta-carbon-700: #54443a;
+    --paleta-carbon-600: #63524a;
+    --paleta-carbon-500: #715f53;
+    --paleta-carbon-200: #e9dccf;
+
+    /* Fondos */
+    --paleta-crema-50:  #fffaf5;
+    --paleta-crema-100: #fcf2e7;
+    --paleta-crema-200: #f3e4d3;
+
+    /* Los mismos colores en "r, g, b" para las transparencias (foco, sombras, Bootstrap) */
+    --paleta-marca-500-rgb: 166, 90, 46;
+    --paleta-marca-600-rgb: 139, 74, 37;
+    --paleta-marca-700-rgb: 112, 60, 31;
+    --paleta-carbon-900-rgb: 51, 40, 31;
+    --paleta-carbon-600-rgb: 99, 82, 74;
+    --paleta-dorado-400-rgb: 221, 184, 102;
+
+    /* Gráfica de ingresos: barras y promedio, par validado para daltonismo */
+    --grafica-serie-1: #a65a2e;
+    --grafica-serie-2: #2a78d6;
+}
+
+/* Estilista Flexible: calma y adaptabilidad (verde sabio + azul claro sereno). */
+[data-tema="flexible"] {
+    /* Marca: acción, enlaces, foco */
+    --paleta-marca-50:  #eff6f1;
+    --paleta-marca-100: #d9eadf;
+    --paleta-marca-200: #b7d4c1;
+    --paleta-marca-500: #4a7560;
+    --paleta-marca-600: #3b604e;
+    --paleta-marca-700: #2f4d3e;
+
+    /* Detalle: bordes, líneas, iconos (300/400 nunca son texto) */
+    --paleta-dorado-200: #d4e7f2;
+    --paleta-dorado-300: #a9cde3;
+    --paleta-dorado-400: #7cb1d3;
+    --paleta-dorado-700: #2c5f7f;
+
+    /* Texto y contraste */
+    --paleta-carbon-900: #1e2a28;
+    --paleta-carbon-700: #384845;
+    --paleta-carbon-600: #475855;
+    --paleta-carbon-500: #566865;
+    --paleta-carbon-200: #d2dcda;
+
+    /* Fondos */
+    --paleta-crema-50:  #f6faf8;
+    --paleta-crema-100: #ebf3ee;
+    --paleta-crema-200: #dae6df;
+
+    /* Los mismos colores en "r, g, b" para las transparencias (foco, sombras, Bootstrap) */
+    --paleta-marca-500-rgb: 74, 117, 96;
+    --paleta-marca-600-rgb: 59, 96, 78;
+    --paleta-marca-700-rgb: 47, 77, 62;
+    --paleta-carbon-900-rgb: 30, 42, 40;
+    --paleta-carbon-600-rgb: 71, 88, 85;
+    --paleta-dorado-400-rgb: 124, 177, 211;
+
+    /* Gráfica de ingresos: barras y promedio, par validado para daltonismo */
+    --grafica-serie-1: #2f8a63;
+    --grafica-serie-2: #8a4fc4;
+}
+
+/* Comunes a los tres temas */
+:root {
+    --paleta-blanco:  #ffffff;
+    /* Estados: no cambian con el tema para que su significado sea siempre el mismo */
+    --paleta-exito:   #2e7656;
+    --paleta-peligro: #b3261e;
+    --paleta-aviso:   #e9b44c;
+    --paleta-info:    #2f6383;
+}
+
+
+/* -----------------------------------------------------------------------------
+   2. TOKENS SEMÁNTICOS
+   ----------------------------------------------------------------------------- */
+:root {
+    /* Superficies */
+    --color-fondo:          var(--paleta-crema-50);
+    --color-superficie:     var(--paleta-blanco);
+    --color-superficie-alt: var(--paleta-crema-100);
+    --color-borde:          var(--paleta-crema-200);
+    --color-borde-fuerte:   var(--paleta-carbon-200);
+
+    /* Texto */
+    --color-texto:          var(--paleta-carbon-900);
+    --color-texto-suave:    var(--paleta-carbon-500);
+    --color-texto-invertido: var(--paleta-crema-50);
+
+    /* Acción (botones principales, enlaces, foco) */
+    --color-accion:         var(--paleta-marca-500);
+    --color-accion-hover:   var(--paleta-marca-600);
+    --color-accion-activo:  var(--paleta-marca-700);
+    --color-accion-suave:   var(--paleta-marca-50);
+    --color-enlace:         var(--paleta-marca-600);
+
+    /* Detalle */
+    --color-detalle:        var(--paleta-dorado-400);
+    --color-detalle-texto:  var(--paleta-dorado-700);
+
+    /* Estados */
+    --color-exito:   var(--paleta-exito);
+    --color-peligro: var(--paleta-peligro);
+    --color-aviso:   var(--paleta-aviso);
+    --color-info:    var(--paleta-info);
+
+    /* Acento del área actual (cada vista lo sobrescribe en la capa 3) */
+    --color-area:       var(--color-accion);
+    --color-area-suave: var(--color-accion-suave);
+
+    /* Forma */
+    --radio-sm: 0.5rem;
+    --radio-md: 0.75rem;
+    --radio-lg: 1rem;
+    --sombra-sm: 0 1px 2px rgba(var(--paleta-carbon-900-rgb), 0.06), 0 1px 3px rgba(var(--paleta-carbon-900-rgb), 0.08);
+    --sombra-md: 0 4px 12px rgba(var(--paleta-carbon-900-rgb), 0.08);
+    --sombra-lg: 0 10px 24px rgba(var(--paleta-carbon-900-rgb), 0.12);
+    --anillo-foco: 0 0 0 0.25rem rgba(var(--paleta-marca-500-rgb), 0.25);
+
+    /* Tipografía (sin fuentes externas: solo fuentes del sistema) */
+    --fuente-titulos: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    --fuente-texto: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+
+    /* Movimiento */
+    --transicion: 0.18s ease;
+}
+
+
+/* -----------------------------------------------------------------------------
+   3. TOKENS POR ÁREA (data-page en <body>)
+   ----------------------------------------------------------------------------- */
+[data-page="dashboard"]       { --color-area: var(--paleta-marca-500);  --color-area-suave: var(--paleta-marca-50); }
+[data-page="servicios"]       { --color-area: var(--paleta-marca-500);  --color-area-suave: var(--paleta-marca-50); }
+[data-page="horarios"]        { --color-area: var(--paleta-info);       --color-area-suave: #e8f0f5; }
+[data-page="iniciar-cita"]    { --color-area: var(--paleta-marca-600);  --color-area-suave: var(--paleta-marca-50); }
+[data-page="cotejar-cita"]    { --color-area: var(--paleta-carbon-700); --color-area-suave: var(--paleta-crema-100); }
+[data-page="cobrar-servicio"] { --color-area: var(--paleta-exito);      --color-area-suave: #e7f2ec; }
+[data-page="clientes"]        { --color-area: var(--paleta-dorado-700); --color-area-suave: #f8f0df; }
+[data-page="empleados"]       { --color-area: var(--paleta-carbon-900); --color-area-suave: var(--paleta-crema-100); }
+[data-page="reportes"]        { --color-area: var(--paleta-marca-700);  --color-area-suave: var(--paleta-marca-50); }
+[data-page="consultas"]       { --color-area: var(--paleta-info);       --color-area-suave: var(--paleta-crema-100); }
+
+
+/* -----------------------------------------------------------------------------
+   4. PUENTE A BOOTSTRAP 5.3 (sus variables globales leen nuestros tokens)
+   ----------------------------------------------------------------------------- */
+:root {
+    --bs-body-bg: var(--color-fondo);
+    --bs-body-color: var(--color-texto);
+    --bs-body-font-family: var(--fuente-texto);
+    --bs-secondary-color: var(--color-texto-suave);
+    --bs-tertiary-bg: var(--color-superficie);
+    --bs-border-color: var(--color-borde);
+    --bs-border-radius: var(--radio-sm);
+    --bs-border-radius-lg: var(--radio-md);
+    --bs-link-color: var(--color-enlace);
+    --bs-link-color-rgb: var(--paleta-marca-600-rgb);
+    --bs-link-hover-color: var(--paleta-marca-700);
+    --bs-link-hover-color-rgb: var(--paleta-marca-700-rgb);
+    --bs-heading-color: var(--color-texto);
+    --bs-focus-ring-color: rgba(var(--paleta-marca-500-rgb), 0.25);
+
+    /* Colores de tema (utilidades text-*, bg-*, text-bg-*) */
+    --bs-primary: var(--paleta-marca-500);
+    --bs-primary-rgb: var(--paleta-marca-500-rgb);
+    --bs-secondary: var(--paleta-carbon-600);
+    --bs-secondary-rgb: var(--paleta-carbon-600-rgb);
+    --bs-success: var(--paleta-exito);
+    --bs-success-rgb: 46, 118, 86;
+    --bs-danger: var(--paleta-peligro);
+    --bs-danger-rgb: 179, 38, 30;
+    --bs-warning: var(--paleta-aviso);
+    --bs-warning-rgb: 233, 180, 76;
+    --bs-info: var(--paleta-info);
+    --bs-info-rgb: 47, 99, 131;
+    --bs-light-rgb: 244, 236, 230;
+
+    /* Alertas */
+    --bs-success-text-emphasis: #1e5039;
+    --bs-success-bg-subtle: #e7f2ec;
+    --bs-success-border-subtle: #b9d9c9;
+    --bs-danger-text-emphasis: #7a1a14;
+    --bs-danger-bg-subtle: #f9e4e2;
+    --bs-danger-border-subtle: #ecb9b5;
+    --bs-warning-text-emphasis: #6b4c0e;
+    --bs-warning-bg-subtle: #fbf1dc;
+    --bs-warning-border-subtle: #f0d79f;
+    --bs-info-text-emphasis: #1d4258;
+    --bs-info-bg-subtle: #e8f0f5;
+    --bs-info-border-subtle: #bcd2e0;
+    --bs-secondary-text-emphasis: var(--paleta-carbon-700);
+    --bs-secondary-bg-subtle: var(--paleta-crema-100);
+    --bs-secondary-border-subtle: var(--paleta-crema-200);
+    --bs-light-text-emphasis: var(--paleta-carbon-700);
+    --bs-light-bg-subtle: var(--paleta-crema-50);
+    --bs-light-border-subtle: var(--paleta-crema-200);
+
+    /* Validación de formularios */
+    --bs-form-invalid-color: var(--paleta-peligro);
+    --bs-form-invalid-border-color: var(--paleta-peligro);
+    --bs-form-valid-color: var(--paleta-exito);
+    --bs-form-valid-border-color: var(--paleta-exito);
+}
+
+
+/* -----------------------------------------------------------------------------
+   5. BASE Y TIPOGRAFÍA
+   ----------------------------------------------------------------------------- */
+body {
+    background-color: var(--color-fondo);
+    color: var(--color-texto);
+    font-family: var(--fuente-texto);
+}
+
+h1,
+.h1,
+h2.h4,
+.hero-estetica h1 {
+    font-family: var(--fuente-titulos);
+    font-weight: 600;
+    letter-spacing: 0.01em;
+}
+
+/* Título de cada vista con una línea de acento del área */
+main > h1,
+main > section > h1 {
+    position: relative;
+    padding-bottom: 0.6rem;
+    margin-bottom: 0.75rem;
+}
+
+main > h1::after,
+main > section > h1::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    bottom: 0;
+    width: 3.5rem;
+    height: 3px;
+    border-radius: 3px;
+    transform: translateX(-50%);
+    background: linear-gradient(90deg, var(--color-area), var(--color-detalle));
+}
+
+.text-muted,
+.form-text {
+    color: var(--color-texto-suave) !important;
+}
+
+::selection {
+    background: var(--paleta-marca-100);
+    color: var(--paleta-carbon-900);
+}
+
+/* Foco visible coherente en todo el sistema */
+:focus-visible {
+    outline: 2px solid var(--color-accion);
+    outline-offset: 2px;
+}
+
+
+/* -----------------------------------------------------------------------------
+   6. NAVEGACIÓN
+   ----------------------------------------------------------------------------- */
+.navbar.bg-body-tertiary {
+    background-color: var(--color-superficie) !important;
+    border-bottom: 1px solid var(--color-borde) !important;
+    box-shadow: var(--sombra-sm);
+}
+
+.navbar-brand {
+    font-family: var(--fuente-titulos);
+    color: var(--color-texto) !important;
+    letter-spacing: 0.02em;
+}
+
+.navbar-brand::before {
+    content: "✂ ";
+    color: var(--color-detalle);
+}
+
+.navbar .nav-link {
+    color: var(--paleta-carbon-700);
+    font-weight: 500;
+    border-radius: var(--radio-sm);
+    padding-inline: 0.65rem !important;
+    transition: color var(--transicion), background-color var(--transicion);
+}
+
+.navbar .nav-link .fa-solid {
+    color: var(--color-detalle);
+    transition: color var(--transicion);
+}
+
+.navbar .nav-link:hover,
+.navbar .nav-link:focus-visible {
+    color: var(--color-accion-hover);
+    background-color: var(--color-accion-suave);
+    text-decoration: none;
+}
+
+.navbar .nav-link:hover .fa-solid {
+    color: var(--color-accion);
+}
+
+.navbar .nav-link.active {
+    color: var(--color-area) !important;
+    background-color: var(--color-area-suave);
+}
+
+.navbar .nav-link.active .fa-solid {
+    color: var(--color-area);
+}
+
+.navbar-toggler:focus {
+    box-shadow: var(--anillo-foco);
+}
+
+
+/* -----------------------------------------------------------------------------
+   7. ENCABEZADO DEL DASHBOARD Y TARJETAS DE MÓDULO
+   ----------------------------------------------------------------------------- */
+.hero-estetica {
+    background:
+        radial-gradient(circle at 15% 20%, rgba(var(--paleta-dorado-400-rgb), 0.22), transparent 40%),
+        linear-gradient(120deg, var(--paleta-carbon-900) 0%, var(--paleta-marca-700) 100%);
+    color: var(--color-texto-invertido);
+    box-shadow: var(--sombra-md);
+    border-bottom: 3px solid var(--color-detalle);
+}
+
+/* Cómico: encabezado luminoso, sin el tono casi negro (texto crema ≥ 5:1 en todo el degradado) */
+[data-tema="comico"] .hero-estetica {
+    background:
+        radial-gradient(circle at 15% 20%, rgba(var(--paleta-dorado-400-rgb), 0.35), transparent 45%),
+        linear-gradient(120deg, var(--paleta-marca-700) 0%, var(--paleta-marca-500) 100%);
+}
+
+.hero-estetica h1 {
+    color: var(--paleta-crema-50);
+}
+
+.hero-estetica p {
+    color: var(--paleta-dorado-200);
+}
+
+.tarjeta-modulo {
+    background-color: var(--color-superficie);
+    border: 1px solid var(--color-borde);
+    border-radius: var(--radio-md);
+    box-shadow: var(--sombra-sm);
+    color: var(--color-texto);
+    transition: transform var(--transicion), box-shadow var(--transicion), border-color var(--transicion);
+}
+
+.tarjeta-modulo .text-primary {
+    color: var(--color-accion) !important;
+}
+
+.tarjeta-modulo:hover,
+.tarjeta-modulo:focus-visible {
+    transform: translateY(-3px);
+    box-shadow: var(--sombra-lg);
+    border-color: var(--color-detalle);
+}
+
+
+/* -----------------------------------------------------------------------------
+   8. TARJETAS, PANELES Y TABLAS
+   ----------------------------------------------------------------------------- */
+.card {
+    --bs-card-bg: var(--color-superficie);
+    --bs-card-border-color: var(--color-borde);
+    --bs-card-border-radius: var(--radio-md);
+    --bs-card-inner-border-radius: calc(var(--radio-md) - 1px);
+    box-shadow: var(--sombra-sm);
+}
+
+.card.border-success,
+.card.border-primary {
+    border-color: var(--color-area) !important;
+    border-top-width: 4px;
+}
+
+.card .text-success {
+    color: var(--color-area) !important;
+}
+
+/* Paneles de formulario (Clientes/Empleados) */
+.panel-sticky {
+    border-top: 4px solid var(--color-area);
+}
+
+/* Catálogo de servicios: movido a app/paginas/servicios/servicios.css (encapsulado). */
+
+/* Tablas */
+.table {
+    --bs-table-bg: var(--color-superficie);
+    --bs-table-color: var(--color-texto);
+    --bs-table-border-color: var(--color-borde);
+    --bs-table-hover-bg: var(--color-accion-suave);
+    --bs-table-hover-color: var(--color-texto);
+    border-radius: var(--radio-md);
+    overflow: hidden;
+    box-shadow: var(--sombra-sm);
+}
+
+.table > thead th {
+    background-color: var(--color-superficie-alt);
+    color: var(--paleta-carbon-700);
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    border-bottom: 2px solid var(--color-detalle);
+}
+
+.table-light {
+    --bs-table-bg: var(--paleta-crema-100);
+    --bs-table-color: var(--color-texto-suave);
+}
+
+/* Métricas del historial de clientes */
+#historialCliente .border.rounded {
+    border-color: var(--color-borde) !important;
+    border-left: 3px solid var(--color-area) !important;
+    background-color: var(--color-superficie-alt) !important;
+}
+
+
+/* -----------------------------------------------------------------------------
+   9. BOTONES (Bootstrap fija sus colores al compilar: se reasignan aquí)
+   ----------------------------------------------------------------------------- */
+.btn {
+    --bs-btn-border-radius: var(--radio-sm);
+    --bs-btn-font-weight: 500;
+    --bs-btn-focus-box-shadow: var(--anillo-foco);
+    transition: color var(--transicion), background-color var(--transicion),
+        border-color var(--transicion), box-shadow var(--transicion), transform var(--transicion);
+}
+
+.btn:active {
+    transform: translateY(1px);
+}
+
+.btn-primary {
+    --bs-btn-color: #fff;
+    --bs-btn-bg: var(--color-accion);
+    --bs-btn-border-color: var(--color-accion);
+    --bs-btn-hover-color: #fff;
+    --bs-btn-hover-bg: var(--color-accion-hover);
+    --bs-btn-hover-border-color: var(--color-accion-hover);
+    --bs-btn-active-color: #fff;
+    --bs-btn-active-bg: var(--color-accion-activo);
+    --bs-btn-active-border-color: var(--color-accion-activo);
+    --bs-btn-disabled-bg: var(--paleta-marca-200);
+    --bs-btn-disabled-border-color: var(--paleta-marca-200);
+}
+
+/* Botón de confirmación (Registrar, Realizar cobro): el tono profundo del tema con borde de detalle */
+.btn-success {
+    --bs-btn-color: var(--paleta-crema-50);
+    --bs-btn-bg: var(--paleta-marca-600);
+    --bs-btn-border-color: var(--paleta-marca-600);
+    --bs-btn-hover-color: var(--paleta-crema-50);
+    --bs-btn-hover-bg: var(--paleta-marca-700);
+    --bs-btn-hover-border-color: var(--paleta-marca-700);
+    --bs-btn-active-color: var(--paleta-crema-50);
+    --bs-btn-active-bg: var(--paleta-carbon-900);
+    --bs-btn-active-border-color: var(--paleta-carbon-900);
+    box-shadow: inset 0 -2px 0 var(--color-detalle);
+}
+
+.btn-outline-primary {
+    --bs-btn-color: var(--color-enlace);
+    --bs-btn-border-color: var(--paleta-marca-200);
+    --bs-btn-hover-color: #fff;
+    --bs-btn-hover-bg: var(--color-accion);
+    --bs-btn-hover-border-color: var(--color-accion);
+    --bs-btn-active-color: #fff;
+    --bs-btn-active-bg: var(--color-accion-hover);
+    --bs-btn-active-border-color: var(--color-accion-hover);
+}
+
+.btn-outline-secondary {
+    --bs-btn-color: var(--paleta-carbon-700);
+    --bs-btn-border-color: var(--color-borde-fuerte);
+    --bs-btn-hover-color: var(--paleta-crema-50);
+    --bs-btn-hover-bg: var(--paleta-carbon-700);
+    --bs-btn-hover-border-color: var(--paleta-carbon-700);
+    --bs-btn-active-color: var(--paleta-crema-50);
+    --bs-btn-active-bg: var(--paleta-carbon-900);
+    --bs-btn-active-border-color: var(--paleta-carbon-900);
+}
+
+.btn-outline-danger {
+    --bs-btn-color: var(--color-peligro);
+    --bs-btn-border-color: #ecb9b5;
+    --bs-btn-hover-color: #fff;
+    --bs-btn-hover-bg: var(--color-peligro);
+    --bs-btn-hover-border-color: var(--color-peligro);
+    --bs-btn-active-color: #fff;
+    --bs-btn-active-bg: #8f1e18;
+    --bs-btn-active-border-color: #8f1e18;
+}
+
+.btn-outline-success {
+    --bs-btn-color: var(--color-exito);
+    --bs-btn-border-color: #b9d9c9;
+    --bs-btn-hover-color: #fff;
+    --bs-btn-hover-bg: var(--color-exito);
+    --bs-btn-hover-border-color: var(--color-exito);
+    --bs-btn-active-color: #fff;
+    --bs-btn-active-bg: #235c43;
+    --bs-btn-active-border-color: #235c43;
+}
+
+
+/* -----------------------------------------------------------------------------
+   10. FORMULARIOS (los colores de foco de Bootstrap también vienen fijos)
+   ----------------------------------------------------------------------------- */
+.form-label {
+    font-weight: 500;
+    color: var(--paleta-carbon-700);
+}
+
+.form-control,
+.form-select {
+    background-color: var(--color-superficie);
+    border-color: var(--color-borde-fuerte);
+    border-radius: var(--radio-sm);
+}
+
+.form-control:focus,
+.form-select:focus {
+    border-color: var(--paleta-marca-200);
+    box-shadow: var(--anillo-foco);
+}
+
+.form-control[readonly] {
+    background-color: var(--color-superficie-alt);
+}
+
+.form-control::placeholder {
+    color: var(--paleta-carbon-500);
+}
+
+.form-control.is-invalid:focus,
+.form-select.is-invalid:focus {
+    box-shadow: 0 0 0 0.25rem rgba(179, 38, 30, 0.2);
+}
+
+.form-check-input:checked {
+    background-color: var(--color-accion);
+    border-color: var(--color-accion);
+}
+
+.form-check-input:focus {
+    border-color: var(--paleta-marca-200);
+    box-shadow: var(--anillo-foco);
+}
+
+/* Cliente reconocido al agendar: movido a app/paginas/agendar/agendar.css (encapsulado). */
+
+
+/* -----------------------------------------------------------------------------
+   11. ESTADOS: BADGES Y ALERTAS
+   ----------------------------------------------------------------------------- */
+.badge {
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    border-radius: 999px;
+    padding: 0.35em 0.7em;
+}
+
+/* Estados de cita: pendiente / confirmada / cancelada / terminada */
+.text-bg-warning {
+    background-color: #fbf1dc !important;
+    color: #6b4c0e !important;
+    box-shadow: inset 0 0 0 1px #f0d79f;
+}
+
+.text-bg-primary {
+    background-color: var(--paleta-marca-50) !important;
+    color: var(--paleta-marca-700) !important;
+    box-shadow: inset 0 0 0 1px var(--paleta-marca-200);
+}
+
+.text-bg-secondary {
+    background-color: var(--paleta-crema-100) !important;
+    color: var(--paleta-carbon-600) !important;
+    box-shadow: inset 0 0 0 1px var(--paleta-crema-200);
+}
+
+.text-bg-success {
+    background-color: #e7f2ec !important;
+    color: #1e5039 !important;
+    box-shadow: inset 0 0 0 1px #b9d9c9;
+}
+
+.text-bg-info {
+    background-color: #e8f0f5 !important;
+    color: #1d4258 !important;
+    box-shadow: inset 0 0 0 1px #bcd2e0;
+}
+
+.alert {
+    border-radius: var(--radio-md);
+    border-left-width: 4px;
+}
+
+/* Botones de horario disponibles: movido a app/paginas/horarios/horarios.css (encapsulado). */
+
+
+/* -----------------------------------------------------------------------------
+   12. PIE DE PÁGINA
+   ----------------------------------------------------------------------------- */
+footer {
+    background-color: var(--paleta-marca-700);
+    color: var(--paleta-crema-50);
+    border-top: 3px solid var(--color-detalle);
+    font-size: 0.9rem;
+}
+
+
+/* -----------------------------------------------------------------------------
+   13. ACCESIBILIDAD Y PREFERENCIAS DEL USUARIO
+   ----------------------------------------------------------------------------- */
+/* Cambio de tema: transición suave de colores. La clase la pone el servicio Tema
+   solo durante el cambio, para no hacer más lento el resto de la interacción. */
+html.cambiando-tema,
+html.cambiando-tema *,
+html.cambiando-tema *::before,
+html.cambiando-tema *::after {
+    transition: background-color 0.45s ease, color 0.45s ease, border-color 0.45s ease,
+        fill 0.45s ease, stroke 0.45s ease, box-shadow 0.45s ease !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        transition-duration: 0.01ms !important;
+        animation-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+
+    /* Sin transición al cambiar de tema (la regla de arriba es más específica) */
+    html.cambiando-tema,
+    html.cambiando-tema *,
+    html.cambiando-tema *::before,
+    html.cambiando-tema *::after {
+        transition: none !important;
+    }
+
+    /* #lista-servicios .card:hover → en servicios.css: encapsulado tendría más especificidad que esta regla */
+    .tarjeta-modulo:hover,
+    .btn:active {
+        transform: none;
+    }
+}
+
+@media (max-width: 991.98px) {
+    .navbar .nav-link {
+        padding-block: 0.6rem;
+    }
+}
+
+/* Menú horizontal en pantallas medianas (992–1199px): con 9 secciones (se agregó Reportes)
+   el espaciado normal desbordaba la página 14px a 992px. Se compacta solo en ese rango. */
+@media (min-width: 992px) and (max-width: 1199.98px) {
+    .navbar .nav-link {
+        padding-inline: 0.4rem !important;
+        font-size: 0.92rem;
+    }
+}
+
+@media print {
+    .navbar,
+    footer,
+    .btn {
+        display: none !important;
+    }
+
+    body {
+        background: #fff;
+    }
+}

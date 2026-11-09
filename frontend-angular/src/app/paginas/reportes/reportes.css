@@ -1,0 +1,82 @@
+/* Indicadores (KPI): número grande en tinta de texto; el color solo en la flecha de variación. */
+.kpi {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    height: 100%;
+    padding: 0.85rem 1rem;
+    background: var(--color-superficie);
+    border: 1px solid var(--color-borde);
+    border-top: 3px solid var(--color-area);
+    border-radius: 8px;
+}
+
+.kpi-chico {
+    min-width: 9rem;
+    height: auto;
+}
+
+.kpi-titulo {
+    color: var(--color-texto-suave);
+    font-size: 0.85rem;
+}
+
+.kpi-valor {
+    color: var(--color-texto);
+    font-size: 1.45rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+.kpi-nota {
+    color: var(--color-texto-suave);
+    font-size: 0.8rem;
+}
+
+/* La flecha y el signo (+/−) cargan el significado; el color solo lo refuerza */
+.kpi-nota.sube i {
+    color: var(--color-exito);
+}
+
+.kpi-nota.baja i {
+    color: var(--color-peligro);
+}
+
+/* Cifras alineadas y sin partirse ("$19,500.00" arriba y "MXN" abajo duplicaba la altura de la fila) */
+td.text-end,
+th.text-end {
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.participacion {
+    width: 30%;
+    white-space: nowrap;
+}
+
+/* Barra de participación: magnitud en un solo tono, sin tapar el número */
+.barra-participacion {
+    display: inline-block;
+    height: 8px;
+    max-width: 70%;
+    margin-right: 0.4rem;
+    vertical-align: middle;
+    border-radius: 0 4px 4px 0;
+    background: #a8405f;
+}
+
+.fila-total td {
+    font-weight: 600;
+    border-top: 2px solid var(--color-borde-fuerte);
+}
+
+.tabla-alta {
+    max-height: 26rem;
+    overflow-y: auto;
+}
+
+.tabla-alta thead th {
+    position: sticky;
+    top: 0;
+    background: var(--color-superficie);
+}

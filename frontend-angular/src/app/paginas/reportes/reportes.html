@@ -1,0 +1,469 @@
+<main class="container">
+  <h1 class="text-center">Reportes</h1>
+
+  <!-- Periodo: común a las tres pestañas -->
+  <section
+    id="periodo"
+    class="d-flex flex-wrap align-items-end gap-2 mb-3"
+    aria-label="Periodo del reporte"
+  >
+    <div class="btn-group" role="group" aria-label="Periodos rápidos">
+      @for (p of periodos; track p.dias) {
+        <button
+          type="button"
+          class="btn btn-outline-primary"
+          [class.active]="preset() === p.dias"
+          [attr.aria-pressed]="preset() === p.dias"
+          [title]="'Últimos ' + p.detalle"
+          (click)="elegirPeriodo(p.dias)"
+        >
+          {{ p.texto }}
+        </button>
+      }
+    </div>
+    <form
+      class="d-flex flex-wrap align-items-end gap-2 ms-lg-auto"
+      (submit)="$event.preventDefault(); aplicarPersonalizado(desde.value, hasta.value)"
+    >
+      <div>
+        <label for="desde" class="form-label small mb-0">Desde</label>
+        <input
+          #desde
+          id="desde"
+          type="date"
+          class="form-control form-control-sm"
+          [max]="hoy"
+          [value]="periodo().desde"
+        />
+      </div>
+      <div>
+        <label for="hasta" class="form-label small mb-0">Hasta</label>
+        <input
+          #hasta
+          id="hasta"
+          type="date"
+          class="form-control form-control-sm"
+          [max]="hoy"
+          [value]="periodo().hasta"
+        />
+      </div>
+      <button
+        type="submit"
+        class="btn btn-sm btn-outline-secondary"
+        [class.active]="preset() === 'personalizado'"
+      >
+        Aplicar
+      </button>
+    </form>
+  </section>
+  <p class="text-muted small" id="rango">Del {{ periodo().desde }} al {{ periodo().hasta }}</p>
+
+  <!-- Pestañas -->
+  <ul class="nav nav-tabs mb-3" role="tablist">
+    @for (
+      t of [
+        ['ingresos', 'Ingresos', 'fa-chart-column'],
+        ['auditoria', 'Auditoría', 'fa-clock-rotate-left'],
+        ['caja', 'Cierres de caja', 'fa-cash-register'],
+      ];
+      track t[0]
+    ) {
+      <li class="nav-item" role="presentation">
+        <button
+          type="button"
+          class="nav-link"
+          role="tab"
+          [id]="'tab-' + t[0]"
+          [class.active]="pestana() === t[0]"
+          [attr.aria-selected]="pestana() === t[0]"
+          (click)="pestana.set($any(t[0]))"
+        >
+          <i class="fa-solid {{ t[2] }} me-1" aria-hidden="true"></i>{{ t[1] }}
+        </button>
+      </li>
+    }
+  </ul>
+
+  <!-- ===================== INGRESOS ===================== -->
+  @if (pestana() === 'ingresos') {
+    <section
+      role="tabpanel"
+      aria-labelledby="tab-ingresos"
+      id="panel-ingresos"
+      [attr.aria-busy]="ingresos.isLoading()"
+    >
+      @if (avisoIngresos(); as a) {
+        <app-aviso
+          [tipo]="a.tipo"
+          [texto]="a.texto"
+          [conReintentar]="!!a.reintentar"
+          (reintentar)="a.reintentar?.()"
+        />
+      } @else if (ingresos.isLoading() && !ingresos.hasValue()) {
+        <app-aviso tipo="secondary" texto="Calculando ingresos…" />
+      }
+
+      @if (ingresos.hasValue()) {
+        @let r = ingresos.value();
+        <div class="row g-3 mb-4" id="kpis">
+          <div class="col-6 col-lg-3">
+            <div class="kpi">
+              <span class="kpi-titulo">Ingresos</span>
+              <span class="kpi-valor">{{ r.resumen.ingresos | moneda }}</span>
+              @if (variacion(); as v) {
+                <span class="kpi-nota" [class.sube]="v.sube" [class.baja]="!v.sube">
+                  <i
+                    class="fa-solid"
+                    [class.fa-arrow-trend-up]="v.sube"
+                    [class.fa-arrow-trend-down]="!v.sube"
+                    aria-hidden="true"
+                  ></i>
+                  {{ v.texto }} vs. los {{ r.resumen.dias }} días anteriores
+                </span>
+              } @else {
+                <span class="kpi-nota">Sin ingresos en el periodo anterior</span>
+              }
+            </div>
+          </div>
+          <div class="col-6 col-lg-3">
+            <div class="kpi">
+              <span class="kpi-titulo">Cobros</span
+              ><span class="kpi-valor">{{ r.resumen.cobros }}</span
+              ><span class="kpi-nota">en {{ r.resumen.dias }} días</span>
+            </div>
+          </div>
+          <div class="col-6 col-lg-3">
+            <div class="kpi">
+              <span class="kpi-titulo">Ticket promedio</span
+              ><span class="kpi-valor">{{ r.resumen.ticketPromedio | moneda }}</span
+              ><span class="kpi-nota">por cobro</span>
+            </div>
+          </div>
+          <div class="col-6 col-lg-3">
+            <div class="kpi">
+              <span class="kpi-titulo">Promedio diario</span
+              ><span class="kpi-valor">{{ r.resumen.promedioDiario | moneda }}</span
+              ><span class="kpi-nota">incluye días sin ventas</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card p-3 mb-4"><app-grafica-ingresos [dias]="r.porDia" /></div>
+
+        <div class="row g-4">
+          <div class="col-xl-8">
+            <h2 class="h5">Por servicio</h2>
+            <div class="table-responsive">
+              <table class="table table-sm align-middle" id="tabla-servicios">
+                <thead>
+                  <tr>
+                    <th scope="col">#</th>
+                    <th scope="col">Servicio</th>
+                    <th scope="col" class="text-end">Cobros</th>
+                    <th scope="col" class="text-end">Ingresos</th>
+                    <th scope="col" class="text-end">Ticket</th>
+                    <th scope="col" class="participacion">Participación</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (s of servicios(); track s.clave) {
+                    <tr>
+                      <td>{{ s.ranking }}</td>
+                      <td>{{ s.servicio }}</td>
+                      <td class="text-end">{{ s.cobros }}</td>
+                      <td class="text-end">{{ s.ingresos | moneda }}</td>
+                      <td class="text-end">{{ s.ticketPromedio | moneda }}</td>
+                      <td class="participacion">
+                        <span
+                          class="barra-participacion"
+                          [style.width.%]="s.participacionPct"
+                          aria-hidden="true"
+                        ></span>
+                        <span class="small">{{ pct(s.participacionPct) }} %</span>
+                      </td>
+                    </tr>
+                  } @empty {
+                    <tr>
+                      <td colspan="6" class="text-muted">Sin cobros en el periodo.</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+            @if (totalServicios() > serviciosVisibles) {
+              <button
+                type="button"
+                class="btn btn-sm btn-link px-0"
+                (click)="mostrarTodosServicios.update((v) => !v)"
+              >
+                {{
+                  mostrarTodosServicios()
+                    ? 'Mostrar solo los ' + serviciosVisibles + ' primeros'
+                    : 'Mostrar los ' + totalServicios() + ' servicios'
+                }}
+              </button>
+            }
+          </div>
+
+          <div class="col-xl-4">
+            <h2 class="h5">Por método de pago</h2>
+            <div class="table-responsive">
+              <table class="table table-sm" id="tabla-metodos">
+                <thead>
+                  <tr>
+                    <th scope="col">Método</th>
+                    <th scope="col" class="text-end">Cobros</th>
+                    <th scope="col" class="text-end">Ingresos</th>
+                    <th scope="col" class="text-end">%</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (m of r.porMetodo; track m.metodo) {
+                    <tr [class.fila-total]="m.metodo === 'total'">
+                      <td>{{ etiquetaMetodo(m.metodo) }}</td>
+                      <td class="text-end">{{ m.cobros }}</td>
+                      <td class="text-end">{{ m.ingresos | moneda }}</td>
+                      <td class="text-end">{{ m.participacionPct === null ? '—' : pct(m.participacionPct) }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      }
+    </section>
+  }
+
+  <!-- ===================== AUDITORÍA ===================== -->
+  @if (pestana() === 'auditoria') {
+    <section role="tabpanel" aria-labelledby="tab-auditoria" id="panel-auditoria">
+      @if (avisoAuditoria(); as a) {
+        <app-aviso
+          [tipo]="a.tipo"
+          [texto]="a.texto"
+          [conReintentar]="!!a.reintentar"
+          (reintentar)="a.reintentar?.()"
+        />
+      }
+      <p class="small text-muted">
+        <span class="badge text-bg-light border">sistema</span> = el cambio pasó por la aplicación.
+        <span class="badge text-bg-warning"
+          ><i class="fa-solid fa-triangle-exclamation me-1" aria-hidden="true"></i>manual</span
+        >
+        = se hizo directo en la base de datos (psql u otra herramienta), sin pasar por la
+        aplicación.
+      </p>
+
+      <h2 class="h5 mt-3">Cambios de precio</h2>
+      @if (costos.isLoading() && !costos.hasValue()) {
+        <app-aviso tipo="secondary" texto="Cargando cambios de precio…" />
+      }
+      @if (costos.hasValue()) {
+        <div class="table-responsive">
+          <table class="table table-sm align-middle" id="tabla-costos">
+            <thead>
+              <tr>
+                <th scope="col">Fecha</th>
+                <th scope="col">Servicio</th>
+                <th scope="col" class="text-end">Antes</th>
+                <th scope="col" class="text-end">Después</th>
+                <th scope="col" class="text-end">Variación</th>
+                <th scope="col">Origen</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (c of costos.value().cambios; track c.momento + c.clave) {
+                <tr>
+                  <td>{{ c.dia }}</td>
+                  <td>{{ c.servicio }}</td>
+                  <td class="text-end">{{ c.costoAnterior | moneda }}</td>
+                  <td class="text-end">{{ c.costoNuevo | moneda }}</td>
+                  <td class="text-end">{{ c.diferencia >= 0 ? '+' : '' }}{{ pct(c.variacionPct) }} %</td>
+                  <td>
+                    @if (c.origen === 'manual') {
+                      <span class="badge text-bg-warning"
+                        ><i class="fa-solid fa-triangle-exclamation me-1" aria-hidden="true"></i
+                        >manual</span
+                      >
+                    } @else {
+                      <span class="badge text-bg-light border">sistema</span>
+                    }
+                  </td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="6" class="text-muted">Sin cambios de precio en el periodo.</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+
+      <h2 class="h5 mt-4">Movimientos de clientes</h2>
+      @if (clientes.isLoading() && !clientes.hasValue()) {
+        <app-aviso tipo="secondary" texto="Cargando movimientos de clientes…" />
+      }
+      @if (clientes.hasValue()) {
+        @let mc = clientes.value();
+        <div class="d-flex flex-wrap gap-3 mb-3" id="resumen-clientes">
+          <div class="kpi kpi-chico">
+            <span class="kpi-titulo">Altas</span
+            ><span class="kpi-valor">{{ mc.resumen.altas }}</span>
+          </div>
+          <div class="kpi kpi-chico">
+            <span class="kpi-titulo">Bajas</span
+            ><span class="kpi-valor">{{ mc.resumen.bajas }}</span>
+          </div>
+          <div class="kpi kpi-chico">
+            <span class="kpi-titulo">Reactivaciones</span
+            ><span class="kpi-valor">{{ mc.resumen.reactivaciones }}</span>
+          </div>
+        </div>
+        <div class="table-responsive tabla-alta">
+          <table class="table table-sm align-middle" id="tabla-movimientos">
+            <thead>
+              <tr>
+                <th scope="col">Fecha</th>
+                <th scope="col">Folio</th>
+                <th scope="col">Cliente</th>
+                <th scope="col">Movimiento</th>
+                <th scope="col">Origen</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (m of mc.movimientos; track m.momento + m.folio) {
+                <tr>
+                  <td>{{ m.dia }}</td>
+                  <td>{{ m.folio }}</td>
+                  <td>{{ m.nombre }}</td>
+                  <td>
+                    @switch (m.movimiento) {
+                      @case ('alta') {
+                        <span class="badge text-bg-success"
+                          ><i class="fa-solid fa-user-plus me-1" aria-hidden="true"></i>alta</span
+                        >
+                      }
+                      @case ('baja') {
+                        <span class="badge text-bg-secondary"
+                          ><i class="fa-solid fa-user-minus me-1" aria-hidden="true"></i>baja</span
+                        >
+                      }
+                      @case ('reactivacion') {
+                        <span class="badge text-bg-info"
+                          ><i class="fa-solid fa-user-check me-1" aria-hidden="true"></i
+                          >reactivación</span
+                        >
+                      }
+                    }
+                  </td>
+                  <td>
+                    @if (m.origen === 'manual') {
+                      <span class="badge text-bg-warning"
+                        ><i class="fa-solid fa-triangle-exclamation me-1" aria-hidden="true"></i
+                        >manual</span
+                      >
+                    } @else {
+                      <span class="badge text-bg-light border">sistema</span>
+                    }
+                  </td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="5" class="text-muted">Sin movimientos de clientes en el periodo.</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </section>
+  }
+
+  <!-- ===================== CIERRES DE CAJA ===================== -->
+  @if (pestana() === 'caja') {
+    <section role="tabpanel" aria-labelledby="tab-caja" id="panel-caja">
+      <div class="d-flex flex-wrap align-items-center gap-3 mb-3">
+        <button
+          type="button"
+          id="cerrar-caja"
+          class="btn btn-success"
+          [disabled]="cerrando() || hoyCerrado() || !cierres.hasValue()"
+          (click)="cerrarCajaHoy()"
+        >
+          <i class="fa-solid fa-lock me-1" aria-hidden="true"></i
+          >{{ cerrando() ? 'Cerrando…' : 'Cerrar la caja de hoy' }}
+        </button>
+        @if (hoyCerrado()) {
+          <span class="text-muted"
+            ><i class="fa-solid fa-circle-check me-1" aria-hidden="true"></i>La caja de hoy ({{
+              hoy
+            }}) ya está cerrada.</span
+          >
+        }
+      </div>
+      <div id="aviso-caja" aria-live="polite" class="mb-3">
+        @if (avisoCaja(); as a) {
+          <app-aviso [tipo]="a.tipo" [texto]="a.texto" />
+        } @else if (avisoCierres(); as a) {
+          <app-aviso
+            [tipo]="a.tipo"
+            [texto]="a.texto"
+            [conReintentar]="!!a.reintentar"
+            (reintentar)="a.reintentar?.()"
+          />
+        }
+      </div>
+
+      @if (cierres.isLoading() && !cierres.hasValue()) {
+        <app-aviso tipo="secondary" texto="Cargando cierres…" />
+      }
+      @if (cierres.hasValue()) {
+        <div class="table-responsive tabla-alta">
+          <table class="table table-sm align-middle" id="tabla-cierres">
+            <thead>
+              <tr>
+                <th scope="col">Día</th>
+                <th scope="col" class="text-end">Cobros</th>
+                <th scope="col" class="text-end">Efectivo</th>
+                <th scope="col" class="text-end">Tarjeta</th>
+                <th scope="col" class="text-end">Transferencia</th>
+                <th scope="col" class="text-end">Total</th>
+                <th scope="col" class="text-end">Descuadre</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (c of cierres.value(); track c.dia) {
+                <tr [class.table-warning]="c.descuadre !== 0" [attr.data-dia]="c.dia">
+                  <td>{{ c.dia }}</td>
+                  <td class="text-end">{{ c.cobros }}</td>
+                  <td class="text-end">{{ c.efectivo | moneda }}</td>
+                  <td class="text-end">{{ c.tarjeta | moneda }}</td>
+                  <td class="text-end">{{ c.transferencia | moneda }}</td>
+                  <td class="text-end fw-semibold">{{ c.total | moneda }}</td>
+                  <td class="text-end">
+                    @if (c.descuadre !== 0) {
+                      <span
+                        title="Cobros agregados o cambiados después del cierre, sin pasar por la aplicación"
+                      >
+                        <i class="fa-solid fa-triangle-exclamation me-1" aria-hidden="true"></i
+                        >{{ c.descuadre | moneda }}
+                      </span>
+                    } @else {
+                      <span class="text-muted">—</span>
+                    }
+                  </td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="7" class="text-muted">Sin cierres en el periodo.</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </section>
+  }
+</main>

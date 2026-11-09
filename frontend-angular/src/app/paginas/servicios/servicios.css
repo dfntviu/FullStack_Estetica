@@ -1,0 +1,29 @@
+/* Estilos exclusivos del catálogo (antes en base.css y tema-estetica.css).
+   Encapsulados: solo aplican a esta página. Los tokens (--color-*, --sombra-*) siguen siendo globales. */
+.servicio-img {
+    height: 200px;
+    object-fit: cover;
+    border-bottom: 3px solid var(--color-detalle);
+}
+
+#lista-servicios .card {
+    transition: transform var(--transicion), box-shadow var(--transicion);
+}
+
+#lista-servicios .card:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--sombra-lg);
+}
+
+#lista-servicios .card-text.text-success {
+    color: var(--color-accion) !important;
+    font-weight: 600;
+}
+
+/* Va aquí y no en el tema global: la regla encapsulada de arriba tiene más especificidad
+   que una global y le ganaría a `transform: none`. */
+@media (prefers-reduced-motion: reduce) {
+    #lista-servicios .card:hover {
+        transform: none;
+    }
+}

@@ -1,0 +1,176 @@
+<main class="container">
+  <h1 class="text-center">Cobrar Servicio</h1>
+
+  <div id="aviso-cobro" class="form-estetica mx-auto mb-3" aria-live="polite">
+    @if (errorCatalogo(); as e) {
+      <app-aviso tipo="danger" [texto]="e" [conReintentar]="true" (reintentar)="catalogo.reload()" />
+    } @else if (aviso(); as a) {
+      <app-aviso tipo="danger" [texto]="a.texto" [conReintentar]="!!a.reintentar" (reintentar)="a.reintentar?.()" />
+    }
+  </div>
+
+  <form id="formCobroServicio" class="form-estetica mx-auto" novalidate [formGroup]="form" (ngSubmit)="cobrar()">
+    <div class="mb-3">
+      <label for="citaFolio" class="form-label">Folio de cita <span class="text-muted">(opcional)</span></label>
+      <input
+        type="text"
+        class="form-control"
+        id="citaFolio"
+        formControlName="citaFolio"
+        placeholder="Ej. A010"
+        autocomplete="off"
+        aria-describedby="ayudaFolio"
+        [attr.aria-busy]="buscandoCita()"
+        [class.is-invalid]="errores.de('citaFolio')"
+        [attr.aria-invalid]="errores.de('citaFolio') ? true : null"
+        (change)="cambiarFolio()"
+      />
+      <div class="invalid-feedback" data-error-for="citaFolio">{{ errores.de('citaFolio') }}</div>
+      <div id="ayudaFolio" class="form-text" [class.text-success]="citaCargada()">{{ ayudaFolio() }}</div>
+    </div>
+
+    <fieldset id="datosSinCita" [disabled]="!!citaCargada()">
+      <div class="mb-3">
+        <label for="telefono" class="form-label">Teléfono del cliente <span class="text-muted">(opcional)</span></label>
+        <input
+          type="tel"
+          class="form-control"
+          id="telefono"
+          formControlName="telefono"
+          placeholder="10 dígitos"
+          inputmode="numeric"
+          aria-describedby="ayudaTelefono"
+          [class.is-invalid]="errores.de('telefono')"
+          [attr.aria-invalid]="errores.de('telefono') ? true : null"
+        />
+        <div class="invalid-feedback" data-error-for="telefono">{{ errores.de('telefono') }}</div>
+        <div id="ayudaTelefono" class="form-text">Si es cliente registrado, basta el teléfono: el cobro se suma a su historial.</div>
+      </div>
+      <div class="mb-3">
+        <label for="cliente" class="form-label">Cliente</label>
+        <input
+          type="text"
+          class="form-control"
+          id="cliente"
+          formControlName="cliente"
+          placeholder="Nombre del cliente"
+          [class.is-invalid]="errores.de('cliente')"
+          [attr.aria-invalid]="errores.de('cliente') ? true : null"
+        />
+        <div class="invalid-feedback" data-error-for="cliente">{{ errores.de('cliente') }}</div>
+      </div>
+      <div class="mb-3">
+        <label for="servicio" class="form-label">Servicio</label>
+        <select
+          class="form-select"
+          id="servicio"
+          formControlName="servicio"
+          [class.is-invalid]="errores.de('servicio')"
+          [attr.aria-invalid]="errores.de('servicio') ? true : null"
+        >
+          <option value="">{{ catalogo.isLoading() ? 'Cargando servicios…' : 'Selecciona un servicio' }}</option>
+          @if (catalogo.hasValue()) {
+            @for (s of catalogo.value(); track s.id) {
+              <option [value]="s.id">{{ s.nombre }} ({{ s.costo | moneda }})</option>
+            }
+          }
+        </select>
+        <div class="invalid-feedback" data-error-for="servicio">{{ errores.de('servicio') }}</div>
+      </div>
+    </fieldset>
+
+    <div class="row g-3 mb-3">
+      <div class="col-sm-6">
+        <label for="metodo" class="form-label">Método de pago</label>
+        <select
+          class="form-select"
+          id="metodo"
+          formControlName="metodo"
+          [class.is-invalid]="errores.de('metodo')"
+          [attr.aria-invalid]="errores.de('metodo') ? true : null"
+          (change)="cambiarMetodo()"
+        >
+          @for (m of metodos; track m[0]) {
+            <option [value]="m[0]">{{ m[1] }}</option>
+          }
+        </select>
+        <div class="invalid-feedback" data-error-for="metodo">{{ errores.de('metodo') }}</div>
+      </div>
+      <div class="col-sm-6" id="grupoReferencia" [hidden]="!exacto()">
+        <label for="referencia" class="form-label">Referencia</label>
+        <input
+          type="text"
+          class="form-control"
+          id="referencia"
+          formControlName="referencia"
+          maxlength="60"
+          [placeholder]="form.controls.metodo.value === 'transferencia' ? 'Folio o clave de rastreo SPEI' : 'Últimos 4 dígitos (opcional)'"
+          [required]="form.controls.metodo.value === 'transferencia'"
+          [class.is-invalid]="errores.de('referencia')"
+          [attr.aria-invalid]="errores.de('referencia') ? true : null"
+        />
+        <div class="invalid-feedback" data-error-for="referencia">{{ errores.de('referencia') }}</div>
+      </div>
+    </div>
+
+    <div class="row g-3 mb-3">
+      <div class="col-sm-4">
+        <label for="totalCobro" class="form-label">Total</label>
+        <input type="text" class="form-control" id="totalCobro" readonly [value]="total() ? (total() | moneda) : ''" />
+      </div>
+      <div class="col-sm-4">
+        <label for="pagado" class="form-label">Monto pagado</label>
+        <input
+          type="number"
+          class="form-control"
+          id="pagado"
+          formControlName="pagado"
+          min="0"
+          step="0.01"
+          inputmode="decimal"
+          [readOnly]="exacto()"
+          [class.is-invalid]="errores.de('pagado')"
+          [attr.aria-invalid]="errores.de('pagado') ? true : null"
+        />
+        <div class="invalid-feedback" data-error-for="pagado">{{ errores.de('pagado') }}</div>
+      </div>
+      <div class="col-sm-4">
+        <label for="cambio" class="form-label">Cambio</label>
+        <input
+          type="text"
+          class="form-control"
+          id="cambio"
+          readonly
+          [class.text-danger]="(cambioPrevio() ?? 0) < 0"
+          [value]="cambioPrevio() === null ? '' : (cambioPrevio() | moneda)"
+        />
+      </div>
+    </div>
+
+    <div class="text-center">
+      <button type="submit" class="btn btn-success" [disabled]="ocupado()">{{ ocupado() ? 'Cobrando…' : 'Realizar cobro' }}</button>
+    </div>
+  </form>
+
+  @if (comprobante(); as c) {
+    <section #mensajeCobro id="mensajeCobro" class="card form-estetica mx-auto mt-4 border-success" tabindex="-1" aria-live="polite">
+      <div class="card-body">
+        <h2 class="h4 text-success">¡Cobro realizado con éxito!</h2>
+        <p class="mb-1">
+          <strong>Folio de cobro:</strong> <span id="msgFolio">{{ c.folio }}{{ c.citaFolio ? ' (cita ' + c.citaFolio + ')' : '' }}</span>
+        </p>
+        <p class="mb-1">
+          <strong>Cliente:</strong>
+          <span id="msgCliente">{{ c.cliente }}{{ c.clienteFolio ? ' (' + c.clienteFolio + ')' : ' (cliente de paso)' }}</span>
+        </p>
+        <p class="mb-1"><strong>Servicio:</strong> <span id="msgServicio">{{ c.servicio }}</span></p>
+        <p class="mb-1">
+          <strong>Método:</strong> <span id="msgMetodo">{{ nombreMetodo[c.metodo] }}{{ c.referencia ? ' · ref. ' + c.referencia : '' }}</span>
+        </p>
+        <p class="mb-1"><strong>Total cobrado:</strong> <span id="msgTotalCobrado">{{ c.total | moneda }}</span></p>
+        <p class="mb-1"><strong>Pagó:</strong> <span id="msgPagado">{{ c.pagado | moneda }}</span></p>
+        <p class="mb-0"><strong>Cambio:</strong> <span id="msgCambio">{{ c.cambio | moneda }}</span></p>
+      </div>
+    </section>
+  }
+</main>

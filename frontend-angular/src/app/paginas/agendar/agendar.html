@@ -1,0 +1,126 @@
+<main class="container">
+  <h1 class="text-center">Agendar Cita</h1>
+
+  <div id="aviso-agendar" class="form-estetica mx-auto mb-3" aria-live="polite">
+    @if (aviso(); as a) {
+      <app-aviso tipo="danger" [texto]="a.texto" [conReintentar]="!!a.reintentar" (reintentar)="a.reintentar?.()" />
+    }
+  </div>
+
+  <form id="formIniciarCita" class="form-estetica mx-auto" novalidate [formGroup]="form" (ngSubmit)="registrar()">
+    <div class="mb-3">
+      <label for="telefono" class="form-label">Teléfono del cliente</label>
+      <input
+        type="tel"
+        class="form-control"
+        id="telefono"
+        formControlName="telefono"
+        placeholder="10 dígitos"
+        inputmode="numeric"
+        autocomplete="tel"
+        required
+        aria-describedby="clienteEncontrado"
+        [class.is-invalid]="errores.de('telefono')"
+        [attr.aria-invalid]="errores.de('telefono') ? true : null"
+      />
+      <div class="invalid-feedback" data-error-for="telefono">{{ errores.de('telefono') }}</div>
+      <div id="clienteEncontrado" class="form-text" aria-live="polite" [class.text-success]="estadoTelefono().tipo === 'encontrado'">
+        {{ ayudaCliente() }}
+      </div>
+    </div>
+
+    <div class="mb-3">
+      <label for="cliente" class="form-label">Cliente</label>
+      <input
+        type="text"
+        class="form-control"
+        id="cliente"
+        formControlName="cliente"
+        placeholder="Nombre del cliente"
+        autocomplete="name"
+        required
+        [readOnly]="estadoTelefono().tipo === 'encontrado'"
+        [class.is-invalid]="errores.de('cliente')"
+        [attr.aria-invalid]="errores.de('cliente') ? true : null"
+      />
+      <div class="invalid-feedback" data-error-for="cliente">{{ errores.de('cliente') }}</div>
+    </div>
+
+    <div class="mb-3">
+      <label for="servicio" class="form-label">Servicio</label>
+      <select
+        class="form-select"
+        id="servicio"
+        formControlName="servicio"
+        required
+        [class.is-invalid]="errores.de('servicio')"
+        [attr.aria-invalid]="errores.de('servicio') ? true : null"
+      >
+        <option value="">{{ catalogo.isLoading() ? 'Cargando servicios…' : 'Selecciona un servicio' }}</option>
+        @if (catalogo.hasValue()) {
+          @for (s of catalogo.value(); track s.id) {
+            <option [value]="s.id">{{ s.nombre }} ({{ s.costo | moneda }})</option>
+          }
+        }
+      </select>
+      <div class="invalid-feedback" data-error-for="servicio">{{ errores.de('servicio') }}</div>
+    </div>
+
+    <div class="row g-3 mb-3">
+      <div class="col-sm-6">
+        <label for="fecha" class="form-label">Fecha</label>
+        <input
+          type="date"
+          class="form-control"
+          id="fecha"
+          formControlName="fecha"
+          required
+          [min]="hoy"
+          [class.is-invalid]="errores.de('fecha')"
+          [attr.aria-invalid]="errores.de('fecha') ? true : null"
+        />
+        <div class="invalid-feedback" data-error-for="fecha">{{ errores.de('fecha') }}</div>
+      </div>
+      <div class="col-sm-6">
+        <label for="hora" class="form-label">Hora</label>
+        <select
+          class="form-select"
+          id="hora"
+          formControlName="hora"
+          required
+          [class.is-invalid]="errores.de('hora')"
+          [attr.aria-invalid]="errores.de('hora') ? true : null"
+        >
+          <option value="">{{ horas().placeholder }}</option>
+          @for (h of horas().opciones; track h) {
+            <option [value]="h">{{ h }}</option>
+          }
+        </select>
+        <div class="invalid-feedback" data-error-for="hora">{{ errores.de('hora') }}</div>
+      </div>
+    </div>
+
+    <div class="text-center">
+      <button type="submit" class="btn btn-success" [disabled]="ocupado()">
+        {{ ocupado() ? 'Registrando…' : 'Registrar cita' }}
+      </button>
+    </div>
+  </form>
+
+  @if (ficha(); as f) {
+    <section #fichaCita id="fichaCita" class="card form-estetica mx-auto mt-4 border-success" tabindex="-1" aria-live="polite">
+      <div class="card-body">
+        <h2 class="h4 text-success">Ficha de la cita</h2>
+        <p class="mb-1"><strong>Número de ficha:</strong> <span id="fichaNumero">{{ f.cita.id }}</span></p>
+        <p class="mb-1">
+          <strong>Cliente:</strong> <span id="fichaCliente">{{ f.cita.nombre }}</span>
+          <span id="fichaClienteNuevo" class="badge text-bg-info" [hidden]="!f.clienteNuevo">cliente nuevo</span>
+        </p>
+        <p class="mb-1"><strong>Servicio:</strong> <span id="fichaServicio">{{ f.cita.servicio }}</span></p>
+        <p class="mb-1"><strong>Fecha:</strong> <span id="fichaFecha">{{ f.cita.fecha }}</span></p>
+        <p class="mb-3"><strong>Hora:</strong> <span id="fichaHora">{{ f.cita.hora }}</span></p>
+        <a class="btn btn-outline-primary btn-sm" routerLink="/verificar" [queryParams]="{ q: f.cita.id }">Ir a verificar cita</a>
+      </div>
+    </section>
+  }
+</main>

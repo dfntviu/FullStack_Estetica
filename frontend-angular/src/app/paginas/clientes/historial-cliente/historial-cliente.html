@@ -1,0 +1,82 @@
+@let h = historial();
+@let c = h.cliente;
+<section id="historialCliente" class="card mt-3 border-primary" aria-live="polite">
+  <div class="card-body">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+      <div>
+        <h2 class="h5 mb-0">Historial de {{ c.nombre }}</h2>
+        <small class="text-muted">{{ c.id }} · {{ c.telefono | telefono }} · cliente desde {{ c.fechaRegistro }}</small>
+      </div>
+      <div class="d-flex gap-1">
+        @if (c.activo && c.telefono) {
+          <a class="btn btn-sm btn-success" routerLink="/agendar" [queryParams]="{ telefono: c.telefono }">Agendar cita</a>
+        }
+        <button type="button" class="btn btn-sm btn-outline-secondary" (click)="cerrar.emit()">Cerrar</button>
+      </div>
+    </div>
+
+    @if (c.observaciones) {
+      <p class="alert alert-light border small mb-3"><strong>Observaciones: </strong>{{ c.observaciones }}</p>
+    }
+
+    <div class="row g-2 mb-3">
+      <div class="col-6 col-md-3">
+        <div class="border rounded p-2 h-100 bg-white">
+          <div class="small text-muted">Citas</div>
+          <div class="fw-semibold">{{ h.totalCitas }}</div>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="border rounded p-2 h-100 bg-white">
+          <div class="small text-muted">Total gastado</div>
+          <div class="fw-semibold">{{ h.totalGastado | moneda }}</div>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="border rounded p-2 h-100 bg-white">
+          <div class="small text-muted">Última visita</div>
+          <div class="fw-semibold">{{ h.ultimaVisita || '—' }}</div>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="border rounded p-2 h-100 bg-white">
+          <div class="small text-muted">Servicio frecuente</div>
+          <div class="fw-semibold">{{ h.servicioFrecuente || '—' }}</div>
+        </div>
+      </div>
+    </div>
+
+    @if (h.proximaCita; as p) {
+      <p class="small mb-2">Próxima cita: {{ p.fecha }} a las {{ p.hora }} ({{ p.servicio }}, {{ p.id }}).</p>
+    }
+
+    @if (h.citas.length) {
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+          <thead>
+            <tr>
+              <th scope="col">Folio</th>
+              <th scope="col">Fecha</th>
+              <th scope="col">Hora</th>
+              <th scope="col">Servicio</th>
+              <th scope="col">Estado</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (cita of h.citas; track cita.id) {
+              <tr>
+                <td>{{ cita.id }}</td>
+                <td>{{ cita.fecha }}</td>
+                <td>{{ cita.hora }}</td>
+                <td>{{ cita.servicio }}</td>
+                <td><span class="badge text-bg-{{ colorEstado[cita.estado] ?? 'light' }}">{{ cita.estado }}</span></td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    } @else {
+      <p class="text-muted mb-0">Este cliente aún no tiene citas.</p>
+    }
+  </div>
+</section>

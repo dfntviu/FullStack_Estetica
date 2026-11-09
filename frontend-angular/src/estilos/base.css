@@ -1,0 +1,88 @@
+/* Estilos compartidos por todas las vistas (antes solo los usaba el dashboard). */
+:root {
+    --estetica-primario: #0d6efd;
+    --estetica-primario-oscuro: #0056b3;
+    --estetica-fondo: #f3f9fa;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: var(--estetica-fondo);
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+main {
+    flex: 1;
+    padding: 2rem 0 3rem;
+}
+
+/* Encabezado del dashboard */
+.hero-estetica {
+    background: linear-gradient(90deg, var(--estetica-primario), var(--estetica-primario-oscuro));
+    color: #fff;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.hero-estetica h1 {
+    font-size: 2rem;
+    margin: 0;
+}
+
+/* Navbar */
+.navbar .nav-link {
+    color: var(--estetica-primario);
+    font-weight: 500;
+    transition: color 0.3s ease;
+}
+
+.navbar .nav-link:hover,
+.navbar .nav-link:focus-visible {
+    color: #228952;
+    text-decoration: underline;
+}
+
+.navbar .nav-link.active {
+    color: #228952;
+}
+
+/* Tarjetas de servicios: movido a app/paginas/servicios/servicios.css (encapsulado). */
+
+.tarjeta-modulo {
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.tarjeta-modulo:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.1);
+}
+
+.form-estetica {
+    max-width: 640px;
+}
+
+/* Clientes / Empleados */
+.observaciones {
+    max-width: 16rem;
+}
+
+.panel-sticky {
+    position: sticky;
+    top: 1rem;
+}
+
+/* Footer (antes position: fixed; tapaba contenido en pantallas pequeñas) */
+footer {
+    text-align: center;
+    padding: 1rem;
+    background-color: #e9ecef;
+    color: #555;
+}
+
+@media (max-width: 576px) {
+    .hero-estetica h1 {
+        font-size: 1.5rem;
+    }
+}

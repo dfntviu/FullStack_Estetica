@@ -1,0 +1,213 @@
+<main class="container">
+  <h1 class="text-center">Consultas</h1>
+
+  <section class="d-flex flex-wrap align-items-center gap-2 mb-1" aria-label="Periodo">
+    <div class="btn-group" role="group" aria-label="Periodo de las consultas">
+      @for (p of periodos; track p.valor) {
+        <button
+          type="button"
+          class="btn btn-outline-primary"
+          [class.active]="preset() === p.valor"
+          [attr.aria-pressed]="preset() === p.valor"
+          (click)="preset.set(p.valor)"
+        >
+          {{ p.texto }}
+        </button>
+      }
+    </div>
+  </section>
+  <p class="text-muted small mb-4" id="rango">{{ rangoTexto() }}</p>
+
+  <!-- ================= CONSULTA MAESTRA: siempre visible ================= -->
+  <section class="card mb-4" id="diagnostico" [attr.aria-busy]="diagnostico.isLoading()">
+    <header class="card-header">
+      <h2 class="h5 mb-0">Diagnóstico del negocio</h2>
+      <small class="text-muted">
+        Cada fila es un empleado con un servicio. Haz clic en un número subrayado para ver las citas
+        que lo forman.
+      </small>
+    </header>
+    <div class="card-body">
+      @if (errorDiagnostico(); as e) {
+        <app-aviso
+          tipo="danger"
+          [texto]="e"
+          [conReintentar]="true"
+          (reintentar)="diagnostico.reload()"
+        />
+      } @else if (diagnostico.isLoading() && !diagnostico.hasValue()) {
+        <app-aviso tipo="secondary" texto="Calculando el diagnóstico…" />
+      }
+
+      @if (diagnostico.hasValue()) {
+        @let t = totales();
+        <div class="resumen d-flex flex-wrap gap-2 mb-3" id="resumen-diagnostico">
+          <span class="dato"><span class="etiqueta">Citas</span>{{ t.citas }}</span>
+          <span class="dato"><span class="etiqueta">Cobradas</span>{{ t.cobradas }}</span>
+          <span class="dato" [class.alerta]="t.vencidas > 0">
+            <span class="etiqueta">
+              @if (t.vencidas > 0) {
+                <i class="fa-solid fa-triangle-exclamation me-1" aria-hidden="true"></i>
+              }
+              Vencidas sin cobro</span
+            >{{ t.vencidas }}
+          </span>
+          <span class="dato"><span class="etiqueta">Programadas</span>{{ t.programadas }}</span>
+          <span class="dato"><span class="etiqueta">Ingresos</span>{{ t.ingresos | moneda }}</span>
+          <span class="dato"
+            ><span class="etiqueta">Tasa de cobro</span
+            >{{ t.tasa === null ? '—' : t.tasa + ' %' }}</span
+          >
+        </div>
+
+        <div class="table-responsive tabla-maestra">
+          <table class="table table-sm table-hover align-middle mb-0" id="tabla-diagnostico">
+            <thead>
+              <tr>
+                <th scope="col">Empleado</th>
+                <th scope="col">Servicio</th>
+                <th scope="col" class="text-end">Citas</th>
+                <th scope="col" class="text-end">Clientes</th>
+                <th scope="col" class="text-end">Cobradas</th>
+                <th scope="col" class="text-end">Vencidas sin cobro</th>
+                <th scope="col" class="text-end">Programadas</th>
+                <th scope="col" class="text-end">Canceladas</th>
+                <th scope="col" class="text-end">Ingresos</th>
+                <th
+                  scope="col"
+                  class="text-end"
+                  title="Cobradas entre las citas que ya debían cobrarse (cobradas + vencidas)"
+                >
+                  % cobro
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (f of diagnosticoVisible(); track (f.empleadoFolio ?? '-') + f.servicioClave) {
+                <tr>
+                  <td>
+                    {{ f.empleado
+                    }}<small class="d-block text-muted">{{
+                      f.empleadoFolio ?? 'sin empleado asignado'
+                    }}</small>
+                  </td>
+                  <td>
+                    {{ f.servicio }}<small class="d-block text-muted">{{ f.servicioClave }}</small>
+                  </td>
+                  <td class="text-end">
+                    <button
+                      type="button"
+                      class="btn btn-link p-0 numero"
+                      [attr.aria-label]="
+                        'Ver las ' + f.citas + ' citas de ' + f.empleado + ' en ' + f.servicio
+                      "
+                      (click)="verDetalle('agenda', f)"
+                    >
+                      {{ f.citas }}
+                    </button>
+                  </td>
+                  <td class="text-end">{{ f.clientes }}</td>
+                  <td class="text-end">{{ f.cobradas }}</td>
+                  <td class="text-end">
+                    @if (f.vencidasSinCobro > 0) {
+                      <button
+                        type="button"
+                        class="btn btn-link p-0 numero vencidas"
+                        [attr.aria-label]="
+                          'Ver las ' +
+                          f.vencidasSinCobro +
+                          ' citas vencidas sin cobro de ' +
+                          f.empleado +
+                          ' en ' +
+                          f.servicio
+                        "
+                        (click)="verDetalle('vencidas', f)"
+                      >
+                        <i class="fa-solid fa-triangle-exclamation me-1" aria-hidden="true"></i
+                        >{{ f.vencidasSinCobro }}
+                      </button>
+                    } @else {
+                      <span class="text-muted">0</span>
+                    }
+                  </td>
+                  <td class="text-end">{{ f.programadas }}</td>
+                  <td class="text-end">{{ f.canceladas }}</td>
+                  <td class="text-end">{{ f.ingresos | moneda }}</td>
+                  <td class="text-end">
+                    {{ f.tasaCobroPct === null ? '—' : f.tasaCobroPct + ' %' }}
+                  </td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="10" class="text-muted">No hay citas en este periodo.</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+        @if (totalCombinaciones() > filasVisibles) {
+          <button
+            type="button"
+            class="btn btn-sm btn-link px-0 mt-2"
+            (click)="verTodoDiagnostico.update((v) => !v)"
+          >
+            {{
+              verTodoDiagnostico()
+                ? 'Mostrar solo las ' + filasVisibles + ' de más actividad'
+                : 'Ver las ' + totalCombinaciones() + ' combinaciones de empleado y servicio'
+            }}
+          </button>
+        }
+      }
+    </div>
+  </section>
+
+  <!-- ================= CASILLAS ================= -->
+  <section class="card mb-4" id="selector-consultas">
+    <header class="card-header">
+      <h2 class="h5 mb-0">Consultas de detalle</h2>
+      <small class="text-muted">Marca las que quieras ver y pulsa Aplicar.</small>
+    </header>
+    <div class="list-group list-group-flush">
+      @for (c of catalogo; track c.id) {
+        <label
+          class="list-group-item opcion d-flex gap-3 align-items-start"
+          [class.marcada]="seleccion().has(c.id)"
+        >
+          <input
+            class="form-check-input mt-1"
+            type="checkbox"
+            [checked]="seleccion().has(c.id)"
+            (change)="alternar(c.id)"
+          />
+          <span>
+            <span class="fw-semibold d-block">{{ c.titulo }}</span>
+            <small class="text-muted">{{ c.descripcion }}</small>
+          </span>
+        </label>
+      }
+    </div>
+    <div class="card-footer d-flex justify-content-end">
+      <button
+        type="button"
+        id="aplicar"
+        class="btn btn-primary"
+        [disabled]="!hayCambios()"
+        (click)="aplicar()"
+      >
+        Aplicar{{ seleccion().size ? ' (' + seleccion().size + ')' : '' }}
+      </button>
+    </div>
+  </section>
+
+  <!-- ================= RESULTADOS ================= -->
+  @for (id of aplicadas(); track id) {
+    <app-tarjeta-consulta
+      [definicion]="definicion(id)"
+      [periodo]="periodo()"
+      [filtro]="filtros()[id] ?? null"
+      (quitarFiltro)="quitarFiltro(id)"
+      (cerrar)="quitar(id)"
+    />
+  }
+</main>

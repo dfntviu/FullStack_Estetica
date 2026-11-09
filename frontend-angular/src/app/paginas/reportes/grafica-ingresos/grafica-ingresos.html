@@ -1,0 +1,68 @@
+<figure class="grafica mb-0">
+  <figcaption class="d-flex flex-wrap align-items-center gap-3 mb-2">
+    <span class="fw-semibold">Ingresos por día</span>
+    <span class="leyenda"><span class="muestra barra" aria-hidden="true"></span>Ingresos del día</span>
+    <span class="leyenda"><span class="muestra linea" aria-hidden="true"></span>Promedio de 7 días</span>
+  </figcaption>
+
+  <div class="lienzo" (mouseleave)="activo.set(null)">
+    <svg [attr.viewBox]="'0 0 ' + ancho + ' ' + alto" role="img" aria-label="Gráfica de ingresos por día; la tabla con los mismos datos está debajo">
+      <!-- Cuadrícula: 1px, sólida, tenue -->
+      @for (t of escala().marcas; track t.valor) {
+        <line class="cuadricula" [attr.x1]="m.izq" [attr.x2]="ancho - m.der" [attr.y1]="t.y" [attr.y2]="t.y" />
+        <text class="eje" [attr.x]="m.izq - 8" [attr.y]="t.y + 4" text-anchor="end">{{ abreviar(t.valor) }}</text>
+      }
+      @for (e of etiquetasX(); track e.x) {
+        <text class="eje" [attr.x]="e.x" [attr.y]="alto - 8" text-anchor="middle">{{ e.texto }}</text>
+      }
+
+      <!-- Columna resaltada bajo el cursor -->
+      @if (tooltip(); as t) {
+        <rect class="resalte" [attr.x]="t.cx - columna() / 2" [attr.y]="m.arr" [attr.width]="columna()" [attr.height]="baseY - m.arr" />
+      }
+
+      @for (b of barras(); track b.d.dia) {
+        @if (b.ruta) {
+          <path class="barra" [attr.d]="b.ruta" />
+        }
+      }
+      <path class="linea" [attr.d]="linea()" />
+
+      <!-- Zonas de toque: toda la columna, más grande que la barra -->
+      @for (b of barras(); track b.d.dia) {
+        <rect
+          class="zona"
+          [attr.x]="b.cx - columna() / 2"
+          [attr.y]="m.arr"
+          [attr.width]="columna()"
+          [attr.height]="baseY - m.arr"
+          (mouseenter)="activo.set(b.i)"
+        />
+      }
+    </svg>
+
+    @if (tooltip(); as t) {
+      <div class="tooltip-grafica" [class.a-la-izquierda]="t.alLado === 'izq'" [style.left.%]="t.izquierdaPct" role="status">
+        <div class="fw-semibold">{{ t.texto }}</div>
+        <div><span class="muestra barra" aria-hidden="true"></span>{{ t.ingresos | moneda }} · {{ t.cobros }} cobro(s)</div>
+        <div><span class="muestra linea" aria-hidden="true"></span>Promedio 7 días: {{ t.promedio7Dias | moneda }}</div>
+      </div>
+    }
+  </div>
+
+  <details class="mt-2">
+    <summary>Ver los datos en tabla</summary>
+    <div class="table-responsive tabla-dias">
+      <table class="table table-sm mb-0">
+        <thead>
+          <tr><th scope="col">Día</th><th scope="col" class="text-end">Cobros</th><th scope="col" class="text-end">Ingresos</th><th scope="col" class="text-end">Promedio 7 días</th><th scope="col" class="text-end">Acumulado</th></tr>
+        </thead>
+        <tbody>
+          @for (d of dias(); track d.dia) {
+            <tr><td>{{ d.dia }}</td><td class="text-end">{{ d.cobros }}</td><td class="text-end">{{ d.ingresos | moneda }}</td><td class="text-end">{{ d.promedio7Dias | moneda }}</td><td class="text-end">{{ d.acumulado | moneda }}</td></tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </details>
+</figure>

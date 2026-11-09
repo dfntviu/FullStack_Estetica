@@ -1,0 +1,36 @@
+clave,nombre,costo,imagen,activo
+corte-clasico-caballero,Corte Clásico Caballero,120.00,../assets/img/Img.vect-01.jpg,true
+corte-fade,Corte Fade,160.00,../assets/img/Img.vect-02.jpg,true
+corte-texturizado,Corte Texturizado,180.00,../assets/img/Img.vect-03.jpg,true
+corte-infantil,Corte Infantil,90.00,../assets/img/Img.vect-04.jpg,true
+corte-dama-puntas,Corte de Dama (Puntas),150.00,../assets/img/Img.vect-05.jpg,true
+corte-dama-capas,Corte de Dama en Capas,260.00,../assets/img/Img.vect-06.jpg,true
+corte-pixie,Corte Pixie,280.00,../assets/img/Img.vect-07.jpg,true
+corte-bob,Corte Bob,270.00,../assets/img/Img.vect-09.jpg,true
+arreglo-barba-clasico,Arreglo de Barba Clásico,110.00,../assets/img/Img.vect-10.jpg,true
+afeitado-navaja,Afeitado con Navaja,150.00,../assets/img/Img.vect-01.jpg,true
+perfilado-barba,Perfilado de Barba,95.00,../assets/img/Img.vect-02.jpg,true
+ritual-barba-toalla,Ritual de Barba con Toalla Caliente,230.00,../assets/img/Img.vect-03.jpg,true
+tinte-raiz,Tinte de Raíz,380.00,../assets/img/Img.vect-04.jpg,true
+tinte-completo,Tinte Completo,650.00,../assets/img/Img.vect-05.jpg,true
+mechas-californianas,Mechas Californianas,1250.00,../assets/img/Img.vect-06.jpg,true
+balayage,Balayage,1450.00,../assets/img/Img.vect-07.jpg,true
+babylights,Babylights,1350.00,../assets/img/Img.vect-09.jpg,true
+matiz-cenizo,Matiz Cenizo,420.00,../assets/img/Img.vect-10.jpg,true
+decoloracion-global,Decoloración Global,980.00,../assets/img/Img.vect-01.jpg,true
+cubre-canas-caballero,Cubre Canas Caballero,250.00,../assets/img/Img.vect-02.jpg,true
+keratina-brasilena,Keratina Brasileña,1100.00,../assets/img/Img.vect-03.jpg,true
+botox-capilar,Botox Capilar,850.00,../assets/img/Img.vect-04.jpg,true
+hidratacion-profunda,Hidratación Profunda,380.00,../assets/img/Img.vect-05.jpg,true
+tratamiento-anticaida,Tratamiento Anticaída,520.00,../assets/img/Img.vect-06.jpg,true
+permanente-rizos,Permanente de Rizos,900.00,../assets/img/Img.vect-07.jpg,true
+alaciado-japones,Alaciado Japonés,1500.00,../assets/img/Img.vect-09.jpg,true
+peinado-evento,Peinado para Evento,480.00,../assets/img/Img.vect-10.jpg,true
+peinado-novia,Peinado de Novia,1200.00,../assets/img/Img.vect-01.jpg,true
+recogido-elegante,Recogido Elegante,550.00,../assets/img/Img.vect-02.jpg,true
+ondas-al-agua,Ondas al Agua,420.00,../assets/img/Img.vect-03.jpg,true
+trenzas-boxeadoras,Trenzas Boxeadoras,300.00,../assets/img/Img.vect-04.jpg,false
+lavado-secado,Lavado y Secado,140.00,../assets/img/Img.vect-05.jpg,true
+planchado-express,Planchado Express,180.00,../assets/img/Img.vect-06.jpg,false
+diseno-cejas,Diseño de Cejas,120.00,../assets/img/Img.vect-07.jpg,true
+mascarilla-facial-caballero,Mascarilla Facial Caballero,260.00,../assets/img/Img.vect-09.jpg,true

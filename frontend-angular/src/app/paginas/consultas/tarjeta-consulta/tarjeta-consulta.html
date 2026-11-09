@@ -1,0 +1,123 @@
+<section
+  class="card tarjeta-consulta mb-4"
+  [attr.data-consulta]="id()"
+  [attr.aria-busy]="datos.isLoading()"
+>
+  <header class="card-header d-flex flex-wrap align-items-center gap-2">
+    <div class="me-auto">
+      <h2 class="h5 mb-0">{{ definicion().titulo }}</h2>
+      <small class="text-muted">{{ definicion().descripcion }}</small>
+    </div>
+
+    @if (datos.hasValue()) {
+      <span class="badge text-bg-light border conteo">
+        {{ filas().length }} resultado(s){{ filtro() ? ' de ' + todas().length : '' }}
+      </span>
+    }
+    <button
+      type="button"
+      class="btn btn-sm btn-outline-secondary"
+      [disabled]="!filas().length"
+      (click)="descargarCsv()"
+    >
+      <i class="fa-solid fa-file-csv me-1" aria-hidden="true"></i>Descargar CSV
+    </button>
+    <button
+      type="button"
+      class="btn btn-sm btn-outline-secondary"
+      [attr.aria-pressed]="verSql()"
+      (click)="verSql.update((v) => !v)"
+    >
+      <i class="fa-solid fa-code me-1" aria-hidden="true"></i
+      >{{ verSql() ? 'Ocultar SQL' : 'Ver SQL' }}
+    </button>
+    <button
+      type="button"
+      class="btn btn-sm btn-link text-muted"
+      aria-label="Quitar esta consulta"
+      (click)="cerrar.emit()"
+    >
+      <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+    </button>
+  </header>
+
+  <div class="card-body">
+    @if (filtro(); as f) {
+      <p class="filtro mb-2">
+        <i class="fa-solid fa-filter me-1" aria-hidden="true"></i>Filtrado por
+        <strong>{{ f.etiqueta }}</strong>
+        <button type="button" class="btn btn-sm btn-link py-0" (click)="quitarFiltro.emit()">
+          Ver todas
+        </button>
+      </p>
+    }
+    @if (!definicion().usaPeriodo) {
+      <p class="small text-muted mb-2">
+        <i class="fa-solid fa-clock-rotate-left me-1" aria-hidden="true"></i>Revisa todo el
+        historial: el periodo no aplica.
+      </p>
+    }
+
+    @if (verSql()) {
+      @if (sql.hasValue()) {
+        <pre class="sql"><code>{{ sql.value().sql }}</code></pre>
+      } @else if (sql.isLoading()) {
+        <p class="text-muted small">Cargando SQL…</p>
+      }
+    }
+
+    @if (error(); as e) {
+      <app-aviso tipo="danger" [texto]="e" [conReintentar]="true" (reintentar)="datos.reload()" />
+    } @else if (datos.isLoading() && !datos.hasValue()) {
+      <app-aviso tipo="secondary" texto="Consultando…" />
+    } @else if (datos.hasValue() && !filas().length) {
+      <p class="vacio mb-0">{{ definicion().vacio }}</p>
+    } @else if (filas().length) {
+      <div class="table-responsive resultados">
+        <table class="table table-sm table-hover align-middle mb-0">
+          <thead>
+            <tr>
+              @for (c of definicion().columnas; track c.clave) {
+                <th scope="col" [class.text-end]="esNumerica(c)">{{ c.titulo }}</th>
+              }
+            </tr>
+          </thead>
+          <tbody>
+            @for (fila of filas(); track $index) {
+              <tr>
+                @for (c of definicion().columnas; track c.clave) {
+                  <td [class.text-end]="esNumerica(c)">
+                    @switch (c.tipo) {
+                      @case ('estado') {
+                        @if (fila[c.clave]) {
+                          <span class="badge {{ badgeEstado(fila[c.clave]) }}">{{
+                            fila[c.clave]
+                          }}</span>
+                        } @else {
+                          {{ valor(c, fila) }}
+                        }
+                      }
+                      @case ('situacion') {
+                        @let s = badgeSituacion(fila[c.clave]);
+                        <span class="badge {{ s.clase }}"
+                          ><i class="fa-solid {{ s.icono }} me-1" aria-hidden="true"></i
+                          >{{ fila[c.clave] }}</span
+                        >
+                      }
+                      @default {
+                        {{ valor(c, fila) }}
+                      }
+                    }
+                    @if (secundaria(c, fila); as sec) {
+                      <small class="d-block text-muted">{{ sec }}</small>
+                    }
+                  </td>
+                }
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </div>
+</section>

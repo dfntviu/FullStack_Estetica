@@ -1,0 +1,1248 @@
+NOTA: este reporte describe el proyecto hasta el 6 de noviembre de 2026 (Reportes y Consultas).
+La versión final reorganizó carpetas (database/, backend por capas, core/ de Angular) y migró Cobrar,
+Clientes y Empleados a Angular: ver README.md y la sección 10 de docs/05-ANGULAR-FASE2-ARQUITECTURA.md.
+
+==============================================================================
+ESTÉTICA FULL-STACK — REPORTE TÉCNICO DE CONSTRUCCIÓN
+==============================================================================
+
+Nov 6, 2026 · Christopher
+
+1. RESUMEN EJECUTIVO
+--------------------
+
+Estética Miss Name es un sistema de citas y punto de venta para una estética o barbería, operado por una sola persona en recepción. Empezó como un front HTML/CSS/JS que no arrancaba (errores de sintaxis en 5 de 8 archivos, PHP vacío) y terminó como un sistema full-stack: PostgreSQL con las reglas del negocio, una API NestJS, un front MVC nativo y un front Angular 22 con vistas analíticas (Reportes y Consultas).
+
+La idea que ordena todo el proyecto: cada regla vive en la capa que puede garantizarla. Lo que no depende de la fecha actual (horarios, turnos, métodos de pago, unicidad de turno) lo garantiza PostgreSQL con CHECK e índices. Lo que depende de "hoy" lo garantiza la API. El front no decide reglas: pregunta y muestra.
+
+Etapas
+~~~~~~
+
+1. Recuperación del nativo. Se reparó el código original en MVC con ES Modules y persistencia en localStorage.
+2. Vistas nuevas. Clientes (con historial) y Empleados, más un tema visual por tokens CSS.
+3. Full-stack. Diagrama ER, esquema PostgreSQL, API NestJS con SQL escrito a mano y migración del front vista por vista a la API.
+4. Migración a Angular en fases (análisis, arquitectura, una vista por entrega): Servicios, Horarios, Agendar y Verificar.
+5. SQL avanzado. Auditoría genérica por triggers, reportes de ingresos con funciones de ventana, cierre de caja con un procedimiento y la vista Reportes en Angular.
+6. Consultas. Una consulta maestra de diagnóstico más 6 consultas de detalle, con su vista Angular.
+
+Stack final
+~~~~~~~~~~~
+
+  Capa | Tecnología | Versión
+  Base de datos | PostgreSQL (esquema estetica) | 14 o superior; probado en 16
+  API | NestJS + pg (sin ORM) + class-validator | NestJS 12, pg 8.23
+  Front nativo | HTML + CSS + JavaScript ES Modules, MVC | sin dependencias
+  Front Angular | Angular zoneless, standalone, signals, httpResource | 22.2, TypeScript 6.0
+  UI compartida | Bootstrap CSS + Font Awesome + tema propio por tokens | 5.3.3 / 6.5.2
+  Pruebas | Vitest, PGlite (PostgreSQL embebido), Playwright, Newman | —
+
+Verificación al cierre
+~~~~~~~~~~~~~~~~~~~~~~
+
+  Suite | Resultado
+  Validador del esquema (validar-esquema.cjs) | 46/46 reglas
+  API e2e contra PostgreSQL embebido | 50/50
+  API unitarias | 5/5
+  Front nativo (node:test) | 39/39
+  Front Angular (Vitest) | 84/84
+  Navegador real (Playwright), 6 vistas Angular | 111 comprobaciones
+  Colección Postman (Newman) | 36 peticiones, 61 comprobaciones
+  ng build | sin errores
+
+2. PUNTO DE PARTIDA: EL PROYECTO NATIVO ORIGINAL
+------------------------------------------------
+
+El proyecto llegó como un sitio estático que no podía ejecutarse: ninguna vista cargaba app.js y 5 de los 8 archivos JavaScript tenían errores de sintaxis. La intención de diseño era clara (un MVC por páginas con un backend PHP), pero la implementación no la sostenía.
+
+Estructura original
+~~~~~~~~~~~~~~~~~~~
+
+- Layouts/dashboard.html como página de inicio y views/*.html como una página por función: servicios, horarios, iniciar cita, cotejar cita, cobrar y lista de cobros.
+- source/*.js: un script por vista (mostrar_Servicios.js, mostrar_Horarios.js, iniciar_Cita.js, cotejar_Cita.js, cobrar_Servicio.js).
+- Layouts/data/servicios.js y citas.js como datos.
+- 6 archivos .php vacíos que representaban un backend que nunca existió.
+- Bootstrap 5.3.0-alpha1 y Font Awesome por CDN.
+
+Defectos verificados
+~~~~~~~~~~~~~~~~~~~~
+
+Cada hallazgo se reprodujo leyendo el archivo, no se tomó de un informe sin comprobarlo.
+
+  Severidad | Archivo | Defecto
+  Bloqueante | app.js | Imports a ../source/... (fuera del proyecto), un archivo inexistente (inciar_Cita.js), funciones no exportadas
+  Bloqueante | data/citas.js | Faltan comas entre objetos y no hay export
+  Bloqueante | data/servicios.js | const capturarServicios() =, import dentro de una función, nombre = ... en lugar de nombre: ...
+  Bloqueante | cotejar_Cita.js | toLoweCase, condiciones sin |  | , nada exportado
+  Bloqueante | mostrar_Horarios.js | Llaves y return sin cerrar, lenght, totalDateString, variables inexistentes
+  Alta | 3 archivos | Tres catálogos con precios distintos (Barba Hipster: $270, $380 y $490)
+  Alta | 3 archivos | Tres arreglos de citas aislados: agendar no afectaba la disponibilidad ni la verificación
+  Alta | mostrar_Horarios.js | El sábado se rechazaba completo; "Domingo" contra "domingo" nunca coincidía; el traslape devolvía siempre true porque un arreglo vacío es truthy
+  Alta | cobrar_Servicio.js | submit registrado dentro de change (se duplicaba en cada cambio), validación invertida y pago insuficiente aceptado
+  Media | iniciar_Cita.js | Folio con Math.random() (colisiones) y sin guardar nada
+  Media | mostrar_Servicios.js | DOMContentLoaded registrado dentro de un clic (nunca se dispara) e innerHTML con datos
+  Media | HTML | Bootstrap alpha, integrity falso, <a> sin cerrar, type="text/script"
+  Baja | CSS | Pie de página position: fixed que tapaba contenido; hoja barrra_nav.css con nombre distinto al enlazado
+
+Lectura del diagnóstico
+~~~~~~~~~~~~~~~~~~~~~~~
+
+Los defectos de sintaxis eran lo visible, pero el problema de fondo era la ausencia de una fuente única de verdad: tres catálogos y tres listas de citas significan que el sistema no podía ser coherente aunque compilara. Por eso la recuperación no fue solo corregir errores, sino unificar el estado. Esa misma idea, llevada más lejos, es la que después llevó las reglas a PostgreSQL.
+
+3. RECUPERACIÓN DEL STACK NATIVO Y TRANSICIÓN A LA API
+------------------------------------------------------
+
+La recuperación conservó el stack (HTML, CSS y JS sin frameworks) y lo reorganizó en un MVC real con un único punto de composición. Después, ese mismo MVC se conectó a la API sin cambiar su forma: solo los modelos pasaron de síncronos a asíncronos.
+
+3.1 Arquitectura elegida: MVC con un adaptador de persistencia
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    app.js  (punto de composición: lee <body data-page>, crea Model → View → Controller)
+    ├─ Layouts/data/servicios.js     catálogo único (antes había 3 con precios distintos)
+    ├─ source/model/reglasAgenda.js  reglas puras: horario, traslape, cupo, cambio
+    ├─ source/model/CitasModel.js    estado único de citas y cobros (sin DOM)
+    ├─ source/services/almacen.js    localStorage con respaldo en memoria
+    ├─ source/views/*.view.js        pintan con textContent/createElement y avisan eventos
+    └─ source/controllers/*.js       coordinan vista ↔ modelo; no leen selectores
+
+Por qué MVC y no SSV ni Hexagonal. El estado compartido lo resolvía un solo modelo y había un único adaptador de persistencia. Un store aparte solo habría reenviado llamadas, y los puertos y adaptadores habrían sido carpetas sin reglas. Es la arquitectura mínima que resolvía el problema real.
+
+Reglas del MVC aplicadas:
+
+- El modelo no toca el DOM. Reglas puras en reglasAgenda.js, probables con node:test sin navegador.
+- La vista no decide. Expone métodos semánticos (ocupado(), mostrarErrores(), renderLista()) y suscripciones (alGuardar, alFiltrar).
+- El controlador no conoce selectores. Recibe modelo, vista, reloj y confirmarAccion por inyección, lo que permite probarlo con dobles.
+- Sin imports circulares. La vista avisa con callbacks inyectados en lugar de importar al controlador.
+
+3.2 Decisiones de negocio tomadas en la recuperación
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  Decisión | Justificación
+  Precios canónicos = los del <select> y el switch | Eran los únicos dos lugares que coincidían entre sí
+  Lunes a viernes de 09:00 a 18:30, sábado hasta 14:00, domingo cerrado | Reconstruido de la intención del código original; un turno = una cita de 30 minutos
+  Estados: pendiente → confirmada → terminada; pendiente o confirmada → cancelada | Ciclo mínimo que cubre los flujos reales
+  Se puede cobrar una cita pendiente o confirmada | Si el cliente está en la estética, ya llegó: exigir "confirmada" bloqueaba cobros reales
+  maxCitasPorDia = 27 se conservó y se documentó como inalcanzable | Con un turno por cita, el máximo real es 20
+  Folios secuenciales en lugar de Math.random() | Elimina colisiones
+
+3.3 Seguridad y robustez
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+- Cero innerHTML con datos. Todo se pinta con textContent y createElement. Prueba: un nombre <img src=x onerror=...> aparece como texto.
+- Errores en su campo. El primer campo con error recibe el foco y aria-invalid. Antes el error de Cobrar se pintaba en el folio, arriba del formulario, y parecía que el botón no hacía nada.
+- Concurrencia entre pestañas. La primera versión leía localStorage una sola vez; una pestaña vieja ofrecía horarios ya tomados y repetía folios. La corrección: el modelo relee el almacén en cada operación y las vistas se refrescan con el evento storage.
+
+3.4 Vistas nuevas: Clientes y Empleados
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+- Clientes: folio C001, teléfono de 10 dígitos único (es la llave para reconocer al cliente al agendar), cumpleaños solo DD/MM, observaciones de hasta 300 caracteres e historial (total gastado, última visita, próxima cita, servicio más frecuente).
+- Empleados: folio E001, fecha de ingreso no futura, antigüedad calculada y estado activo o inactivo.
+- Baja lógica en lugar de eliminar. Borrar un cliente dejaría citas y cobros sin dueño y rompería el historial.
+- Minimización de datos. Se quitó el domicilio del empleado: ningún flujo lo usaba. Se documentó que teléfono, cumpleaños y observaciones son datos personales sujetos a la LFPDPPP.
+- Integración. Al agendar se escribe primero el teléfono; si existe, se completa el nombre. Si la cita no es válida, no se crea un cliente huérfano.
+
+3.5 Transición a la API
+~~~~~~~~~~~~~~~~~~~~~~~
+
+Las 8 vistas se migraron una por una a la API (Servicios, Clientes, Horarios, Agendar, Cobrar, Verificar, Empleados) sin cambiar la forma del MVC:
+
+- source/services/api.js es el cliente HTTP único. Convierte cualquier falla (validación, restricción de la base, servidor apagado, tiempo agotado) en ErrorApi { status, mensaje, errores }, la misma forma que ya pintaban las vistas.
+- El botón Guardar se bloquea mientras responde la API, para evitar envíos dobles.
+- La búsqueda espera 250 ms y descarta respuestas que lleguen fuera de orden (guarda de secuencia).
+- Al volver a la pestaña (visibilitychange) la lista se refresca: sustituye al evento storage, que solo veía otras pestañas del mismo navegador.
+- Si la API está apagada, la vista dice "No hay conexión con el servidor" y ofrece Reintentar.
+
+La versión con localStorage se movió a legado/version-localstorage/ con sus 21 pruebas funcionando. Sirve para contrastar el "antes": la concurrencia entre pestañas resuelta con el evento storage, frente al índice único parcial que la resuelve hoy en PostgreSQL.
+
+4. ARQUITECTURA DEL BACKEND (NESTJS)
+------------------------------------
+
+La API sigue el patrón Controller → Service → Repository por módulo, con SQL escrito a mano sobre pg y sin ORM. La elección fue deliberada: el dominio vive sobre todo en la base, y un ORM habría escondido justo lo que el proyecto quería aprovechar (restricciones con nombre, índice único parcial, funciones y procedimientos).
+
+    [ Front ]  --HTTP-->  [ API NestJS ]  --SQL-->  [ PostgreSQL ]
+    Angular 22: 5 vistas      Controller: rutas y DTOs   CHECK + índice parcial
+    + Reportes y Consultas    Service: reglas de hoy     Triggers: solo auditan
+    Nativo MVC: Cobrar,       y transacciones            Funciones: reportes
+    Clientes y Empleados      Repository: SQL con pg     y consultas
+    (pregunta y muestra)      (traduce restricciones)    (CALL sp_cerrar_caja)
+
+La base es la única capa que ve todas las escrituras, por eso concentra las reglas que no dependen de la fecha; la API agrega las que sí dependen de ella y el front solo muestra.
+
+4.1 Capas y responsabilidades
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  Capa | Responsabilidad | No hace
+  Controller | Rutas, DTOs y validación de entrada con class-validator | Reglas ni SQL
+  Service | Reglas que dependen de "hoy", coordinación y transacciones | SQL directo
+  Repository | El SQL, parametrizado ($1, $2…) | Decisiones de negocio
+
+El catálogo de servicios no tiene Service porque es de solo lectura: una capa que solo reenvía llamadas es ruido. Hexagonal no se justifica: hay un solo adaptador de datos y nada indica que vaya a cambiar.
+
+4.2 Estructura
+~~~~~~~~~~~~~~
+
+    src/
+    ├─ main.ts, configurar-app.ts   prefijo /api, ValidationPipe, filtro de errores PG, CORS
+    ├─ database/                    Pool de pg + transaccion(); application_name = 'estetica-api'
+    ├─ common/
+    │  ├─ errores-pg.filter.ts      restricción de PostgreSQL → HTTP + mensaje + campo
+    │  ├─ validacion.ts             errores con forma { mensaje, errores: { campo: texto } }
+    │  ├─ agenda.ts                 "hoy" en America/Mexico_City, turnos, horarios libres
+    │  ├─ periodo.ts                PeriodoDto + validarPeriodo (fechas reales, orden, ≤ 366 días)
+    │  └─ transformaciones.ts       recortar, solo dígitos, búsqueda sin acentos
+    ├─ servicios/ clientes/ empleados/ citas/ cobros/   operación diaria
+    ├─ reportes/                    lectura de las funciones de ingresos y auditoría
+    ├─ caja/                        cierre de caja (CALL sp_cerrar_caja)
+    └─ consultas/                   lista blanca id → función SQL
+
+4.3 Decisiones clave
+~~~~~~~~~~~~~~~~~~~~
+
+1. Los errores se traducen por nombre de restricción, no por texto. El filtro global lee error.code y error.constraint de PostgreSQL. Por ejemplo, cita_turno_activo_unico → 409 "Ese horario ya está ocupado" en el campo hora; cierre_caja_pkey → 409 en el campo dia; cierre_dia_futuro → 400. No depende del idioma ni de la codificación del servidor (en Windows, los mensajes de PostgreSQL llegaban como restricciÃ³n).
+2. Una sola forma de error para todo el sistema: { mensaje, errores: { campo: texto }, restriccion? }. El front pinta cada error en su campo sin conocer reglas.
+3. Transacciones donde hay más de una escritura.
+   - Agendar: busca o registra al cliente por teléfono y crea la cita. Si la base rechaza la cita, el ROLLBACK deshace también el alta del cliente: no quedan clientes sin cita.
+   - Cobrar una cita: SELECT … FOR UPDATE bloquea la cita para que dos cajas no la cobren a la vez; se toma el precio congelado, se inserta el cobro y la cita pasa a terminada.
+4. Reglas que dependen de la fecha actual, en la API. No agendar en el pasado ni en un turno de hoy que ya pasó, y no registrar una fecha de ingreso futura. Un CHECK no puede usar current_date porque debe dar el mismo resultado siempre. "Hoy" se calcula en America/Mexico_City, no en la zona del servidor.
+5. Hacia afuera solo salen folios (C001, E001, A001, V0001). Los ids internos nunca salen de la API.
+6. Reconocer a un cliente no gasta folios. Primero UPDATE … WHERE telefono y solo se inserta si no existe. Un INSERT … ON CONFLICT consume un número de identidad aunque no inserte: cada cita de un cliente recurrente habría dejado un hueco en los folios.
+7. La API se identifica ante la base. El pool usa application_name = 'estetica-api'. La auditoría usa ese dato para distinguir cambios del sistema de cambios hechos a mano en psql (sección 7).
+8. El cobro respeta el cierre de caja dentro de la misma transacción. rechazarSiCajaCerrada(tx) se ejecuta después del INSERT del cobro. Si se hiciera antes, un cierre podría ocurrir entre la comprobación y la inserción; después del INSERT, el bloqueo SHARE del procedimiento de cierre ordena ambas operaciones (sección 8).
+9. Consultas por lista blanca. GET /api/consultas/:id traduce el id a una función conocida (diagnostico → fn_diagnostico_negocio). Nada de la URL se concatena al SQL; un id desconocido da 404.
+10. Fechas y números sin sorpresas. pg devuelve date como 'AAAA-MM-DD' (sin convertir a Date, que movería el día por zona horaria) y numeric como number.
+
+4.4 Endpoints
+~~~~~~~~~~~~~
+
+  Método | Ruta | Para qué
+  GET | /api/servicios | Catálogo activo
+  PATCH | /api/servicios/:clave/costo | Cambiar el precio; queda en la auditoría
+  GET · POST · PUT | /api/clientes[/:folio] | Listar y buscar, alta y edición
+  GET | /api/clientes/telefono/:telefono | Reconocer al cliente al agendar (404 si no existe)
+  GET | /api/clientes/:folio/historial | Historial resumido y lista de citas
+  PATCH | /api/clientes/:folio/baja · /reactivar | Baja lógica
+  GET · POST · PUT · PATCH | /api/empleados[/:folio] | Mismo patrón que clientes
+  GET | /api/citas/disponibilidad?fecha= | { horarios, motivo }
+  GET | /api/citas?buscar= | Buscar por folio, nombre o teléfono
+  POST | /api/citas | Agendar → { cita, clienteNuevo }
+  PATCH | /api/citas/:folio/confirmar · /cancelar | Transiciones válidas (409 si no aplica)
+  POST | /api/cobros | Cobro con cita o venta directa
+  GET | /api/cobros?dia= · /api/cobros/corte?dia= | Cobros del día y corte por método
+  GET | /api/reportes/ingresos · /costos · /clientes | Reportes por periodo (≤ 366 días)
+  POST · GET | /api/caja/cierres | Cerrar un día y listar cierres con descuadre
+  GET | /api/consultas · /:id · /:id/sql | Catálogo, filas y SQL instalado (pg_get_functiondef)
+
+4.5 Ejemplo de contrato de error
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    POST /api/citas  { "telefono": "7220000002", "servicio": "corte-normal", "fecha": "2026-11-10", "hora": "10:00" }
+    409 { "mensaje": "Ese horario ya está ocupado. Elige otro.",
+          "errores": { "hora": "Ese horario ya está ocupado. Elige otro." },
+          "restriccion": "cita_turno_activo_unico" }
+
+La regla no la decidió la API: la decidió PostgreSQL. La API solo tradujo el nombre de la restricción a un mensaje y a un campo.
+
+5. MODELADO DE LA BASE DE DATOS
+-------------------------------
+
+El modelo tiene 5 entidades de operación (servicio, cliente, empleado, cita, cobro) y 2 de control (auditoria, cierre_caja), todas en el esquema estetica. La decisión central es que cobro no depende de cita: un cobro puede venir de una cita o ser una venta directa a un cliente de paso, y el modelo tiene que representar ambos sin inventar citas falsas.
+
+5.1 Entidades
+~~~~~~~~~~~~~
+
+  Tabla | Llave natural visible | Columnas clave | Decisiones
+  servicio | clave (slug: corte-normal) | nombre único, costo > 0, activo | La clave es estable para URLs y CSV; el CHECK exige formato slug ^[a-z0-9]+(-[a-z0-9]+)*$
+  cliente | folio C001 (generado) | telefono único de 10 dígitos, cumpleanos DD/MM, observaciones ≤ 300, activo | El teléfono es la llave de negocio para reconocer al cliente
+  empleado | folio E001 | telefono único, fecha_ingreso, activo | "Fecha no futura" se valida en la API
+  cita | folio A001 | cliente_id, servicio_id, empleado_id (opcional), fecha, hora, precio, estado | Precio congelado; empleado opcional para el futuro "estilista"
+  cobro | folio V0001 | cita_id (opcional, único), cliente_id (opcional), nombre_cliente, total, metodo, pagado, cambio (generado), referencia | V de venta para no chocar con C de cliente; 4 dígitos porque crece más rápido
+  auditoria | — | tabla, operacion, registro_id, antes/despues en jsonb, origen | Una sola tabla para cualquier entidad auditada
+  cierre_caja | dia (llave primaria) | totales por método, total, origen | Un solo cierre por día, garantizado por la PK
+
+5.2 Relaciones y cardinalidades
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+- cliente 1 ── 0..N cita y servicio 1 ── 0..N cita: obligatorias.
+- empleado 0..1 ── 0..N cita: opcional. Hoy las citas no se asignan a estilistas; la columna existe para no tener que migrar después.
+- cita 1 ── 0..1 cobro: cobro.cita_id es UNIQUE y admite NULL. Una cita se cobra una sola vez; una venta directa no tiene cita.
+- cliente 0..1 ── 0..N cobro: NULL = cliente de paso. El CHECK cobro_cita_con_cliente impide un cobro de cita sin cliente.
+- servicio 1 ── 0..N cobro: el cobro siempre sabe qué se vendió, aun sin cita.
+
+5.3 Decisiones de diseño y su porqué
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+1. Llaves sustitutas internas + folios legibles generados por la base. id integer GENERATED ALWAYS AS IDENTITY y folio GENERATED ALWAYS AS ('C' || lpad(id::text, 3, '0')) STORED UNIQUE. El folio nunca se desincroniza del id y nadie lo puede escribir a mano. Costo aceptado: si un INSERT falla, el número ya se consumió y el folio tiene un hueco. Es el comportamiento normal de las secuencias y se documentó como limitación.
+2. Precio congelado. cita.precio y cobro.total guardan el precio del momento. Cambiar servicio.costo no altera citas ni cobros pasados: los reportes de ingresos reflejan lo que de verdad se cobró.
+3. nombre_cliente copiado en el cobro. Sirve para clientes de paso (no hay fila en cliente) y deja el comprobante fiel al nombre que se usó al cobrar.
+4. cambio como columna generada: GENERATED ALWAYS AS (pagado - total) STORED. No puede contradecir a pagado y total.
+5. Tipos enumerados para estado_cita y metodo_pago. Valores cerrados que el motor valida; el CSV y la API no pueden introducir un método nuevo por error.
+6. Sin borrados en cascada. Todas las FK son ON DELETE RESTRICT. Clientes, empleados y servicios se dan de baja con activo = false: el historial nunca se pierde.
+7. numeric(10,2) para dinero, nunca float: sin errores de redondeo binario.
+8. timestamptz para cobro.fecha_hora y date + time(0) para la cita. Un cobro es un instante; una cita es una fecha y un turno de agenda local.
+9. Esquema propio (estetica) y script re-ejecutable. schema.sql borra y recrea solo ese esquema, así que no toca nada más de la base.
+10. Sin roles ni políticas de seguridad. Es un punto de venta de un solo operador; las credenciales viven solo en backend/.env.
+
+5.4 Índices
+~~~~~~~~~~~
+
+  Índice | Para qué
+  cita_turno_activo_unico (único, parcial) | Regla de negocio: un solo turno activo por fecha y hora (sección 6)
+  cita_cliente_idx, cita_fecha_idx | Historial por cliente y agenda por día
+  cita_empleado_idx (parcial, WHERE empleado_id IS NOT NULL) | No indexa las citas sin empleado, que hoy son casi todas
+  cobro_cliente_idx (parcial) | Historial de compras sin indexar ventas de paso
+  cobro_fecha_hora_idx | Todos los reportes filtran cobros por rango de tiempo
+  auditoria (tabla, momento) y (tabla, registro_id) | "Cambios de esta tabla en este periodo" e "historia de este registro"
+
+5.5 Vistas del esquema base
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+- v_resumen_cliente: total de citas, total gastado, última visita, próxima cita y servicio más frecuente por cliente. Equivale al antiguo CitasModel.historialDeCliente del nativo.
+- v_corte_caja: cobros y total por día (en hora de México) y método de pago.
+
+El diagrama ER completo está en backend/db/diagrama-er.mmd (Mermaid) y diagrama-er.png.
+
+6. REGLAS DE NEGOCIO DENTRO DE POSTGRESQL
+-----------------------------------------
+
+Toda regla que no depende de la fecha actual se garantiza con una restricción con nombre. Así ninguna ruta de escritura (la API, psql, un CSV, un futuro front) puede saltarla, y el nombre de la restricción se convierte en el código de error que la API traduce.
+
+6.1 Horario de la agenda (cita)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    CONSTRAINT cita_turno_media_hora CHECK (extract(minute FROM hora) IN (0, 30) AND extract(second FROM hora) = 0),
+    CONSTRAINT cita_horario_laboral  CHECK (hora BETWEEN time '09:00' AND time '18:30'),
+    CONSTRAINT cita_no_domingo       CHECK (extract(isodow FROM fecha) <> 7),
+    CONSTRAINT cita_sabado_temprano  CHECK (extract(isodow FROM fecha) <> 6 OR hora <= time '14:00')
+
+- isodow y no dow: en ISO el lunes es 1 y el domingo 7, sin ambigüedad por configuración regional.
+- cita_sabado_temprano está escrita como implicación lógica: "si es sábado, entonces la hora es ≤ 14:00" equivale a NOT sábado OR hora <= 14:00.
+
+6.2 Un solo turno activo: el índice único parcial
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    CREATE UNIQUE INDEX cita_turno_activo_unico
+        ON cita (fecha, hora)
+        WHERE estado IN ('pendiente', 'confirmada');
+
+Es la decisión de base de datos más importante del proyecto.
+
+- Qué resuelve. Dos recepcionistas, dos pestañas o dos peticiones simultáneas no pueden agendar el mismo turno. La segunda inserción falla con unique_violation, aunque ambas hayan visto el turno libre un instante antes.
+- Por qué parcial. Las citas canceladas y terminadas liberan el turno. Un UNIQUE (fecha, hora) normal impediría reagendar un turno cancelado.
+- Por qué no basta con validar en la API. "Consultar si está libre y luego insertar" tiene una ventana de carrera entre ambos pasos. El índice cierra esa ventana en el motor.
+- Evolución prevista. Cuando las citas se asignen a estilistas, el índice pasará a (fecha, hora, empleado_id): un turno por estilista.
+
+En la versión localStorage este mismo problema requería releer el almacén en cada operación y escuchar el evento storage; aun así, solo protegía pestañas del mismo navegador.
+
+6.3 Reglas del cobro
+~~~~~~~~~~~~~~~~~~~~
+
+    CONSTRAINT cobro_monto_valido CHECK (
+        (metodo = 'efectivo' AND pagado >= total) OR
+        (metodo <> 'efectivo' AND pagado = total)
+    ),
+    CONSTRAINT cobro_referencia_transferencia CHECK (metodo <> 'transferencia' OR referencia IS NOT NULL),
+    CONSTRAINT cobro_cita_con_cliente CHECK (cita_id IS NULL OR cliente_id IS NOT NULL)
+
+- En efectivo hay cambio; con tarjeta o transferencia el pago es exacto. Un pago insuficiente es imposible de registrar.
+- La transferencia exige referencia para poder conciliarla.
+- Un cobro de cita siempre tiene cliente; solo las ventas directas pueden ser de paso.
+
+6.4 Reglas de los datos maestros
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  Restricción | Regla
+  cliente.telefono UNIQUE + CHECK (telefono ~ '^[0-9]{10}$') | Teléfono mexicano de 10 dígitos, uno por cliente
+  cliente.cumpleanos CHECK con expresión regular | DD/MM válido (día 01–31, mes 01–12), sin año
+  char_length(btrim(nombre)) >= 3 | Nombres reales, no espacios
+  servicio.costo > 0, cita.precio > 0, cobro.total > 0 | No hay ventas en cero ni negativas
+  servicio_clave_formato | La clave es un slug válido para URLs
+
+6.5 Lo que deliberadamente NO está en la base
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  Regla | Dónde vive | Por qué
+  No agendar en el pasado ni en un turno de hoy que ya pasó | API (common/agenda.ts) | Un CHECK no puede usar current_date: debe ser inmutable para que una fila válida no se vuelva inválida con el tiempo
+  Fecha de ingreso no futura | API | Mismo motivo
+  No cobrar después del cierre de caja | API, dentro de la transacción del cobro | Depende de otra tabla y del día; la base lo vigila con v_cierre_caja (descuadre)
+  Transiciones de estado de la cita | UPDATE … WHERE estado IN (…) en el repositorio | Si la fila no cumple el estado previo, no se actualiza y la API responde 409
+
+6.6 Triggers: solo auditan
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Los dos triggers del sistema (sección 7) no contienen reglas de negocio. Una regla escondida en un trigger es invisible para quien lee el esquema y para quien depura la API. Las reglas viven en CHECK, índices y código explícito; los triggers solo registran lo que ya ocurrió.
+
+6.7 Cómo se verifica
+~~~~~~~~~~~~~~~~~~~~
+
+backend/db/validar-esquema.cjs carga el esquema en un PostgreSQL embebido e intenta violar cada regla: domingo, sábado 15:00, minuto 15, turno duplicado, reagendar un turno cancelado, pago insuficiente, transferencia sin referencia, borrado con historial, precio congelado tras cambiar el catálogo, etc. Son 46 comprobaciones, cada una esperando que la base acepte o rechace con la restricción exacta.
+
+7. AUDITORÍA GENÉRICA CON TRIGGERS
+----------------------------------
+
+Una sola tabla y una sola función de trigger auditan cualquier tabla del sistema, guardando la fila completa antes y después del cambio en jsonb. Hoy se auditan dos cosas: los cambios de precio de los servicios y las altas, bajas y reactivaciones de clientes. Agregar una tercera tabla es una sentencia CREATE TRIGGER, sin ALTER TABLE.
+
+7.1 Por qué en la base y no en la API
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Un registro escrito por la API solo ve lo que pasa por la API. Un trigger ve todo: la API, psql, pgAdmin, un CSV importado. Como el objetivo era poder responder "¿quién cambió este precio y por dónde?", solo la base puede garantizar que no falte nada.
+
+7.2 La tabla auditoria
+~~~~~~~~~~~~~~~~~~~~~~
+
+  Columna | Contenido
+  tabla | Nombre de la tabla que cambió (TG_TABLE_NAME)
+  operacion | INSERT, UPDATE o DELETE (TG_OP)
+  registro_id | Id de la fila afectada
+  antes / despues | Fila completa en jsonb; NULL donde no aplica
+  origen | sistema (API) o manual (cualquier otra conexión)
+  aplicacion | application_name de la conexión: estetica-api, psql…
+  usuario_bd, momento | Rol de la sesión e instante (now() = inicio de la transacción)
+
+El CHECK auditoria_antes_despues exige coherencia: un INSERT no tiene antes, un DELETE no tiene despues y un UPDATE tiene ambos.
+
+Por qué jsonb y no columnas tipadas (costo_anterior, costo_nuevo, activo_anterior…): con columnas, cada tabla auditada necesitaría su propia tabla de historial o un ALTER TABLE. Con jsonb, la misma tabla sirve para todo, y las vistas extraen lo que interesa con antes ->> 'costo'. Costo aceptado: las consultas sobre la auditoría necesitan casts explícitos (::numeric, ::boolean).
+
+7.3 El origen del cambio
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+    CREATE FUNCTION origen_cambio() RETURNS text LANGUAGE sql STABLE AS $$
+        SELECT CASE WHEN current_setting('application_name', true) = 'estetica-api'
+                    THEN 'sistema' ELSE 'manual' END
+    $$;
+
+El sistema no tiene usuarios y la API siempre se conecta con el mismo rol, así que current_user no distingue nada. Lo que sí aporta valor es saber si el cambio pasó por el sistema (con sus validaciones) o se hizo por fuera. La API se identifica con application_name = 'estetica-api' en su pool; cualquier otra herramienta queda como manual. No es un mecanismo de seguridad (cualquiera puede poner ese nombre en su conexión), es una señal operativa.
+
+7.4 La función genérica fn_auditar(), explicada paso a paso
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+PostgreSQL entrega a toda función de trigger estas variables:
+
+  Variable | Qué contiene
+  TG_TABLE_NAME | Nombre de la tabla que disparó el trigger
+  TG_OP | La operación: INSERT, UPDATE o DELETE
+  OLD / NEW | La fila antes y después (OLD no existe en INSERT; NEW no existe en DELETE)
+  TG_ARGV[] / TG_NARGS | Argumentos escritos en CREATE TRIGGER … EXECUTE FUNCTION fn_auditar('activo')
+
+El algoritmo:
+
+1. Convierte OLD y NEW a jsonb con to_jsonb(), dejando NULL el que no existe para esa operación.
+2. Decide si el cambio "cuenta". Un INSERT o un DELETE siempre cuenta; un UPDATE sin argumentos también.
+3. Si es un UPDATE con argumentos, recorre TG_ARGV y compara cada columna en ambos jsonb con IS DISTINCT FROM. Basta con que una sea distinta. IS DISTINCT FROM trata NULL como un valor comparable: NULL contra NULL es "igual" y NULL contra un valor es "distinto", cosa que <> no hace.
+4. Si cuenta, inserta en auditoria. El id se toma de coalesce(despues, antes) ->> 'id' con cast ::integer, porque ->> devuelve texto.
+5. Devuelve NULL: en un trigger AFTER el valor de retorno se ignora.
+
+Para qué sirven los argumentos. En clientes solo interesa el estado (activo). Editar el nombre o el teléfono de un cliente no es una baja ni una reactivación, así que con fn_auditar('activo') esos UPDATE no se registran.
+
+7.5 Los dos triggers
+~~~~~~~~~~~~~~~~~~~~
+
+    CREATE TRIGGER trg_servicio_costo
+        AFTER UPDATE OF costo ON servicio
+        FOR EACH ROW
+        WHEN (OLD.costo IS DISTINCT FROM NEW.costo)
+        EXECUTE FUNCTION fn_auditar();
+    
+    CREATE TRIGGER trg_cliente_estado
+        AFTER INSERT OR UPDATE OF activo ON cliente
+        FOR EACH ROW
+        EXECUTE FUNCTION fn_auditar('activo');
+
+- AFTER y no BEFORE. Se audita lo que ya ocurrió y pasó todas las restricciones. Un BEFORE registraría intentos que después fallan.
+- UPDATE OF costo. El trigger solo se considera si el UPDATE menciona esa columna.
+- WHEN (OLD.costo IS DISTINCT FROM NEW.costo). Evita registrar un "cambio" al mismo precio, y lo filtra antes de llamar a la función.
+- Por qué el de clientes usa argumento y no WHEN. Es INSERT OR UPDATE, y en un INSERT no existe OLD: un WHEN que lo mencione no se puede usar. El filtro se hace dentro de la función, con TG_ARGV.
+- Ambos son FOR EACH ROW: un UPDATE masivo registra una fila por cada registro afectado.
+
+7.6 Vistas de lectura
+~~~~~~~~~~~~~~~~~~~~~
+
+- v_historial_costos: cada cambio de precio con clave, servicio, costo anterior y nuevo, diferencia en pesos, variación en porcentaje, origen y aplicación.
+- v_movimiento_clientes: cada movimiento clasificado como alta (INSERT), reactivacion (activo pasó a true) o baja (pasó a false).
+
+Las vistas aíslan a la API del formato jsonb: si el formato interno cambia, solo cambian las vistas.
+
+7.7 El cambio de precio de punta a punta
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+1. El front (o Postman) envía PATCH /api/servicios/corte-normal/costo { "costo": 160 }.
+2. CambiarCostoDto valida: número, máximo 2 decimales, positivo y ≤ 100,000.
+3. El repositorio ejecuta UPDATE servicio SET costo = $1 WHERE clave = $2. Si el CHECK servicio_costo_check lo rechaza, el filtro lo traduce a 400 en el campo costo.
+4. El trigger registra la fila con origen = 'sistema'.
+5. Las citas ya agendadas y los cobros pasados conservan su precio (precio congelado).
+6. Si alguien hace el mismo cambio desde psql, queda con origen = 'manual' y aplicacion = 'psql'.
+
+7.8 Orden de instalación y efecto en las altas
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+auditoria-reportes.sql va después de seed.sql. Si se instalara antes, los clientes de ejemplo aparecerían como "altas de hoy" en el reporte de movimientos. En cambio, los 130 clientes de los CSV sí quedan auditados como altas manual: se importaron por psql, que es exactamente lo que ocurrió.
+
+7.9 Limitación consciente
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+La tabla auditoria no está protegida contra su propio borrado: quien tenga acceso directo a la base puede modificarla. Protegerla requiere un rol separado para la API y REVOKE UPDATE, DELETE ON auditoria, algo que un sistema de un solo operador sin roles no usa hoy.
+
+8. REPORTES DE INGRESOS Y CIERRE DE CAJA
+----------------------------------------
+
+Los reportes son funciones (RETURNS TABLE) porque leen y devuelven filas; el cierre de caja es un procedimiento porque escribe un registro contable y bloquea la tabla de cobros mientras suma. Se reporta ingresos y no ganancias: el sistema no registra costos de operación, y llamarlo "ganancia" sería falso.
+
+8.1 El día del negocio y el uso del índice
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    CREATE FUNCTION dia_negocio(momento timestamptz) RETURNS date LANGUAGE sql STABLE AS $$
+        SELECT (momento AT TIME ZONE 'America/Mexico_City')::date $$;
+    
+    CREATE FUNCTION inicio_dia_negocio(dia date) RETURNS timestamptz LANGUAGE sql STABLE AS $$
+        SELECT dia::timestamp AT TIME ZONE 'America/Mexico_City' $$;
+
+- Por qué una zona explícita. Un cobro a las 19:30 en Toluca ya es el día siguiente en UTC. "Qué día es" para el negocio se decide en la zona del negocio, no en la del servidor.
+- Por qué STABLE y no IMMUTABLE. Las reglas de zona horaria pueden cambiar (México eliminó el horario de verano en 2022). Una función IMMUTABLE permitiría al planificador guardar un resultado que después sería incorrecto.
+- Por qué filtrar por rango. Todas las consultas filtran fecha_hora >= inicio_dia_negocio(desde) AND fecha_hora < inicio_dia_negocio(hasta + 1). Filtrar con dia_negocio(fecha_hora) = x aplica una función a la columna y obliga a recorrer la tabla; el rango usa cobro_fecha_hora_idx. El límite superior es exclusivo (< el inicio del día siguiente) para no depender de la precisión de los segundos.
+
+8.2 Las cuatro funciones de ingresos
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Todas reciben el mismo periodo [p_desde, p_hasta], ambos incluidos.
+
+fn_ingresos_por_dia: serie diaria completa.
+
+- generate_series(p_desde, p_hasta, interval '1 day') crea todos los días del periodo y un LEFT JOIN les pega sus cobros. Un día sin ventas aparece en 0; con un GROUP BY simple desaparecería y la gráfica mentiría.
+- SUM(ingresos) OVER (ORDER BY dia): total acumulado del periodo.
+- AVG(ingresos) OVER (ORDER BY dia ROWS BETWEEN 6 PRECEDING AND CURRENT ROW): promedio móvil de 7 días, la tendencia sin los picos de cada sábado. ROWS y no RANGE: cuenta filas exactas, y como la serie no tiene huecos, 7 filas son 7 días.
+
+fn_ingresos_por_servicio: ranking y participación.
+
+- RANK() OVER (ORDER BY ingresos DESC): los empates comparten lugar, como en una tabla de posiciones.
+- ingresos / SUM(ingresos) OVER (): OVER () sin partición abarca todo el resultado, así que cada fila conoce el total sin una subconsulta.
+- Ticket promedio = ingresos / cobros.
+
+fn_ingresos_por_metodo: desglose con fila de total.
+
+- GROUP BY ROLLUP (metodo) agrega una fila extra con metodo = NULL que suma todo.
+- GROUPING(metodo) = 1 distingue esa fila de total de un NULL real, y se etiqueta 'total'.
+- La participación usa max(ingresos) FILTER (WHERE es_total = 1) OVER (), que "reparte" el total del ROLLUP a todas las filas, y nullif(…, 0) para no dividir entre cero en un periodo sin cobros (el ROLLUP produce la fila de total aunque no haya datos).
+
+fn_resumen_ingresos: comparación con el periodo anterior.
+
+- Construye dos periodos de la misma duración: el actual y el inmediato anterior (un trimestre contra el trimestre previo).
+- LAG(ingresos) OVER (ORDER BY orden): con dos filas ordenadas (anterior, actual), la actual "ve" a la anterior.
+- Devuelve ingresos, cobros, ticket promedio, promedio diario, ingresos del periodo anterior y variación porcentual (NULL si el anterior es 0: un porcentaje sobre cero no significa nada).
+
+8.3 Reportes de auditoría
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+/api/reportes/costos lee v_historial_costos y /api/reportes/clientes lee v_movimiento_clientes con su resumen (altas, bajas, reactivaciones). Responden las preguntas de negocio originales: el historial de costos del último trimestre o cuatrimestre y los clientes nuevos y dados de baja del último bimestre. En la interfaz, el periodo es un selector, no una consulta distinta.
+
+8.4 Cierre de caja
+~~~~~~~~~~~~~~~~~~
+
+    CREATE TABLE cierre_caja (
+        dia date PRIMARY KEY,               -- un solo cierre por día
+        cobros integer NOT NULL CHECK (cobros >= 0),
+        efectivo numeric(12,2) NOT NULL, tarjeta numeric(12,2) NOT NULL, transferencia numeric(12,2) NOT NULL,
+        total numeric(12,2) NOT NULL,
+        cerrado_en timestamptz NOT NULL DEFAULT now(),
+        origen text NOT NULL DEFAULT origen_cambio(),
+        CONSTRAINT cierre_caja_total_cuadra CHECK (total = efectivo + tarjeta + transferencia)
+    );
+
+El procedimiento sp_cerrar_caja(IN p_dia date, INOUT p_cobros integer, INOUT p_total numeric):
+
+1. Rechaza un día nulo o futuro con RAISE EXCEPTION … USING ERRCODE = 'check_violation', CONSTRAINT = 'cierre_dia_futuro'. Al declarar un nombre de restricción propio, el filtro de la API traduce el error igual que cualquier CHECK.
+2. LOCK TABLE cobro IN SHARE MODE: espera a que terminen los cobros en curso y no deja entrar nuevos hasta el fin de la transacción. Las lecturas siguen permitidas.
+3. Inserta el cierre sumando con FILTER (WHERE metodo = …) por método. Si el día ya estaba cerrado, la llave primaria lo rechaza (cierre_caja_pkey → 409).
+4. Devuelve cobros y total por los parámetros INOUT: CALL sp_cerrar_caja('2026-11-05', NULL, NULL) responde con una fila.
+
+Por qué PROCEDURE y no FUNCTION. Escribe, valida y bloquea: es una operación, no una consulta. Un PROCEDURE expresa esa intención y se invoca con CALL, no dentro de un SELECT.
+
+La carrera que se evitó. Sin el bloqueo, un cobro podría confirmarse entre la suma y la inserción del cierre, y quedar fuera del total. Con SHARE, el cierre espera a ese cobro o el cobro espera al cierre. Del lado de la API, el cobro comprueba si la caja está cerrada después de su INSERT y dentro de su transacción; si el cierre ganó, el cobro se revierte con 409 "La caja de hoy ya está cerrada".
+
+8.5 v_cierre_caja: detectar descuadres
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+La vista compara cada cierre con lo que hoy dice la tabla cobro para ese día (con LEFT JOIN LATERAL). Si alguien insertó un cobro a mano en psql después del cierre, descuadre <> 0 lo delata. La regla "no cobrar después del cierre" la aplica la API; la base no la impide, pero la hace visible.
+
+8.6 Validación del periodo en la API
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+PeriodoDto + validarPeriodo: fechas reales (no 2026-02-30), desde ≤ hasta y como máximo 366 días. El límite protege a la base de una serie diaria de 20 años pedida por error.
+
+9. CONSULTAS Y CONSULTA MAESTRA (PREMIUM)
+-----------------------------------------
+
+La vista Consultas responde preguntas operativas del administrador que los reportes no cubren: qué dinero está pendiente, quién tiene carga, qué clientes nunca compraron, qué servicios nadie pide. Hay una consulta maestra, siempre visible, y 6 consultas de detalle que el usuario activa. Todas viven en backend/db/consultas.sql como funciones.
+
+9.1 Reglas comunes a las 7 funciones
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+1. Nunca se muestra un id interno. Cada fila lleva folios (C001, A001, V0001, E001), nombres y claves. Un id no le dice nada al administrador y expone detalles internos. Una prueba del validador comprueba que ninguna función tenga un parámetro de salida llamado id o *_id.
+2. Periodo opcional. (p_desde date DEFAULT NULL, p_hasta date DEFAULT NULL); NULL = sin límite. Con p_hasta en NULL entran las citas futuras (programadas).
+3. LEFT JOIN donde la columna de unión puede ser NULL. cita.empleado_id, cobro.cita_id y cobro.cliente_id son opcionales. Un INNER JOIN descartaría esas filas en silencio, sin error: es el defecto más difícil de ver en un reporte. Otra prueba del validador compara el total de filas de cada consulta con el conteo directo de la tabla.
+4. Una sola definición de "situación". Todas usan situacion_cita().
+5. Funciones STABLE en SQL puro, consultables con SELECT * FROM fn_…(desde, hasta).
+
+9.2 situacion_cita(): la clasificación única
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    CREATE FUNCTION situacion_cita(p_estado estado_cita, p_fecha date, p_cobrada boolean)
+    RETURNS text LANGUAGE sql STABLE AS $$
+        SELECT CASE
+            WHEN p_cobrada                                               THEN 'cobrada'
+            WHEN p_estado = 'cancelada'                                  THEN 'cancelada'
+            WHEN p_estado = 'terminada' OR p_fecha < dia_negocio(now())  THEN 'vencida sin cobro'
+            ELSE                                                              'programada'
+        END $$;
+
+Por qué existe. El estado de la cita (pendiente, confirmada…) no responde la pregunta de negocio "¿esto ya se cobró o es dinero pendiente?". Una cita pendiente de la semana pasada sin cobro es dinero perdido, no una cita pendiente. Si cada consulta calculara esto por su cuenta, tarde o temprano dos consultas darían cifras distintas para la misma cita. El orden del CASE importa: un cobro gana sobre cualquier estado, y una cancelada nunca es "vencida".
+
+9.3 La consulta maestra: fn_diagnostico_negocio
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Pregunta que responde: "¿Cómo está el negocio por empleado y servicio: cuántas citas, cuántas se cobraron, cuánto dinero está pendiente y cuánto se ingresó?"
+
+El diseño original (propuesto en tres CTE) se conservó y se ajustó en tres puntos que cambiaban el resultado:
+
+Etapa 1 — cobros_por_cita. Concentra el cobro de cada cita: SELECT cita_id, total FROM cobro WHERE cita_id IS NOT NULL. Como cobro.cita_id es UNIQUE, cada cita tiene 0 o 1 cobro: se toma su total, no un conteo, y el JOIN posterior nunca duplica filas. Las ventas directas no tienen cita y no entran: el diagnóstico es de la agenda.
+
+Etapa 2 — detalle_operativo. Integra cita + cliente + servicio + empleado + cobro y calcula la situación de cada cita.
+
+- Ajuste 1: LEFT JOIN empleado con coalesce(e.nombre, 'Sin asignar'). Hoy casi ninguna cita tiene empleado; con INNER JOIN el diagnóstico habría salido casi vacío.
+- LEFT JOIN cobros_por_cita: una cita sin cobro sigue en el diagnóstico, que es justo lo que se quiere ver.
+- El filtro de periodo se aplica aquí, sobre cita.fecha.
+
+Etapa 3 — diagnóstico. Agrega por empleado × servicio con count(*) FILTER (WHERE situacion = …):
+
+  Columna | Cálculo
+  citas, clientes | count(*), count(DISTINCT cliente_id)
+  cobradas, vencidas_sin_cobro, programadas, canceladas | count(*) FILTER (…) por situación
+  ingresos | coalesce(sum(total), 0)
+  tasa_cobro_pct | cobradas / (cobradas + vencidas)
+
+- Ajuste 2: la tasa de cobro se calcula solo sobre las citas que ya debían cobrarse. Una cita futura o cancelada no es una venta perdida; incluirlas en el denominador haría ver mal a quien tiene mucha agenda futura. nullif(…, 0) deja la tasa en NULL cuando no hay nada que cobrar, en lugar de un 0 % falso.
+- Ajuste 3: se usan folios, nombres y claves en lugar de ids.
+- FILTER y no SUM(CASE …): es el estándar SQL, se lee como la pregunta y no se confunde con un NULL.
+- Orden: más citas primero y, a igualdad, más vencidas primero (lo urgente arriba).
+
+Por qué CTE y no subconsultas anidadas. Cada etapa tiene un nombre que coincide con su propósito, se puede probar sola y el SQL se lee de arriba abajo en el orden en que se piensa. En PostgreSQL 12+ las CTE no materializan por defecto, así que no hay costo de rendimiento.
+
+9.4 Las 6 consultas de detalle
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  Id | Función | Pregunta de negocio | Técnica clave y porqué
+  agenda | fn_agenda_detallada | ¿Qué citas hay, de quién, con qué servicio, y ya se cobraron? | Parte de cita; LEFT JOIN a empleado y cobro (ambos opcionales). Devuelve folio de cobro y método cuando existe
+  pagos | fn_pagos_detallados | ¿Qué se cobró, por cita o como venta directa? | Parte de cobro y une la cita con LEFT JOIN: las ventas directas no tienen cita. Columna tipo = "Por cita" o "Venta directa"; cliente NULL = de paso. Filtra por rango de fecha_hora para usar el índice
+  carga-empleados | fn_carga_empleados | ¿Quién tiene agenda y quién no? | Agrega por empleado con FILTER por estado. mode() WITHIN GROUP (ORDER BY servicio) da el servicio más frecuente (agregado de conjunto ordenado). UNION ALL agrega a los empleados activos sin citas con NOT EXISTS: no tener agenda también es información. Incluye la fila "Sin asignar"
+  vencidas | fn_citas_vencidas | ¿Qué dinero está pendiente y a quién llamar? | LEFT JOIN cobro … WHERE co.id IS NULL (anti-join) + situacion_cita = 'vencida sin cobro'. Incluye teléfono y días vencida; la más antigua primero
+  clientes-sin-compras | fn_clientes_sin_compras | ¿Qué clientes registrados nunca han comprado? | SELECT id FROM cliente EXCEPT SELECT cliente_id FROM cobro. LEFT JOIN LATERAL trae su última cita. Ignora el periodo: "nunca ha comprado" es sobre todo el historial
+  servicios-sin-movimiento | fn_servicios_sin_movimiento | ¿Qué servicios activos nadie pidió en el periodo? | Dos NOT EXISTS (ni citas ni cobros). LEFT JOIN LATERAL con su última venta histórica, para distinguir algo reciente de algo crónico
+
+9.5 La trampa de NOT IN con NULL
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+fn_clientes_sin_compras usa EXCEPT y no NOT IN por una razón concreta: cobro.cliente_id es NULL en las ventas a clientes de paso.
+
+    -- Devuelve 0 filas, sin error:
+    SELECT id FROM cliente WHERE id NOT IN (SELECT cliente_id FROM cobro);
+
+id NOT IN (1, 2, NULL) equivale a id <> 1 AND id <> 2 AND id <> NULL. La última comparación es NULL (desconocido), así que la condición completa nunca es verdadera. EXCEPT compara conjuntos y trata los NULL como iguales entre sí; NOT EXISTS tampoco tiene el problema. El validador incluye una prueba que demuestra las dos versiones lado a lado.
+
+9.6 LEFT JOIN LATERAL: "la última" de cada uno
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+LATERAL permite que la subconsulta de la derecha vea las columnas de la fila de la izquierda. Es la forma directa de pedir "la última cita de este cliente" (ORDER BY fecha DESC, hora DESC LIMIT 1) sin una subconsulta correlacionada por columna. LEFT … ON true conserva al cliente aunque no tenga citas.
+
+9.7 Exposición en la API
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+- GET /api/consultas: el catálogo.
+- GET /api/consultas/:id?desde=&hasta=: las filas, con nombres convertidos de snake_case a camelCase.
+- GET /api/consultas/:id/sql: el SQL instalado de la función, obtenido con pg_get_functiondef. Para diagnóstico, agenda y vencidas agrega también situacion_cita. Así el botón "Ver SQL" muestra lo que de verdad corre en la base, no una copia que podría desactualizarse.
+- Lista blanca id → función: nada de la URL llega al SQL; un id desconocido da 404.
+
+9.8 Diseño de la interfaz de Consultas
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+- La maestra siempre visible arriba, con un resumen (citas, cobradas, vencidas, ingresos) y una tabla de 10 columnas. Muestra las 15 filas principales y permite ver todas.
+- Una casilla por consulta de detalle, con su título y una descripción en lenguaje de negocio visible (no un tooltip). Toda la etiqueta es clicable, con cursor: pointer.
+- Botón Aplicar. Marcar casillas no dispara peticiones; Aplicar carga solo lo seleccionado. Evita una ráfaga de consultas mientras el usuario decide, y el botón se habilita solo si hay cambios.
+- Periodo común: Todo, 60, 90 o 120 días. Se aplica como desde sin hasta, para que las citas programadas sigan apareciendo. Las consultas que no usan periodo lo indican.
+- Navegación de la maestra al detalle. Desde una fila del diagnóstico, "Ver detalle" marca la consulta de agenda o de vencidas, la aplica, la filtra por ese empleado y servicio y hace scroll hasta ella.
+- Cada tarjeta de detalle: tabla genérica definida por un catálogo de columnas, insignias de estado y situación, filtro de texto con "Ver todas", exportación CSV, "Ver SQL" y botón para cerrarla.
+
+10. DATOS DE PRUEBA: SEED, HISTÓRICO E IMPORTACIÓN CSV
+------------------------------------------------------
+
+Hay tres fuentes de datos, cada una con un propósito distinto: seed.sql para que el sistema arranque con algo, seed-historico.sql para que los reportes tengan meses de historia, y los CSV para poblar la base a escala realista. Ninguna escribe ids a mano.
+
+10.1 seed.sql
+~~~~~~~~~~~~~
+
+Catálogo, algunos clientes, empleados y citas de ejemplo. Va antes de la auditoría para que esos registros no cuenten como "altas de hoy".
+
+10.2 seed-historico.sql: historia sintética reproducible
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Un bloque DO anónimo que genera unos 8 meses de operación:
+
+- 18 clientes nuevos a lo largo del periodo, con 2 bajas y 1 reactivación.
+- 4 cambios de precio hace 20, 50, 75 y 100 días, registrados en auditoria con la fecha en que "ocurrieron".
+- Cobros de lunes a sábado durante 245 días, con el precio vigente en cada fecha. 245 ≥ 2 × 120: un cuatrimestre se puede comparar contra un cuatrimestre anterior completo. Con un historial más corto, el resumen mostraba una variación de +57.9 % que solo reflejaba la falta de datos.
+- Cierres de caja hasta hoy − 3, para que la pestaña de caja muestre días cerrados y días abiertos.
+- setseed(0.42): los números "aleatorios" son los mismos en cada instalación, y las pruebas pueden esperar valores concretos.
+- No se repite: si ya se aplicó, se detiene. Marca sus filas con aplicacion = 'seed-historico'.
+
+Por qué un bloque DO y no un PROCEDURE. Se ejecuta una vez y no debe quedar instalado como una operación del sistema que alguien pueda volver a llamar.
+
+Un defecto encontrado y corregido. La primera versión producía 0 % de clientes de paso. El random() estaba dentro del WHERE de un LATERAL y se evaluaba una vez por cada cliente candidato, no una vez por cobro. Ahora se decide una vez por cobro, fuera del LATERAL, y el 30 % de los cobros son de paso, como se diseñó.
+
+10.3 Los CSV
+~~~~~~~~~~~~
+
+  Archivo | Filas | Características
+  clientes.csv | 130 | Teléfonos 7241… (exclusivos de los CSV)
+  empleados.csv | 40 | Teléfonos 7242…
+  servicios.csv | 35 | 2 inactivos
+  citas.csv | 125 | 100 terminadas, 10 pendientes, 7 confirmadas, 8 canceladas; columna ref (R001…)
+  cobros.csv | 125 | 100 ligados a citas por ref_cita, 15 ventas directas con cliente, 10 de paso
+
+Se generaron con un script de Python con semilla fija (2026). Los servicios asignados son coherentes con el género del cliente, y cada cita cumple las reglas de la base (sin domingos, sábado hasta 14:00, sin turnos duplicados).
+
+10.4 importar-csv.sql: cómo se cargan sin escribir ids
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+El problema. id y folio son GENERATED ALWAYS: PostgreSQL los asigna y rechaza valores de fuera. Un CSV no puede traer cliente_id = 57 porque ese número no existe hasta que la base lo genera.
+
+La solución: llaves naturales + tablas staging.
+
+1. \copy de cada CSV a una tabla TEMP … ON COMMIT DROP con las mismas columnas y un n bigserial que guarda el orden del archivo.
+2. INSERT … SELECT con JOIN a las tablas reales para traducir cada llave natural a su id: el teléfono del cliente y del empleado, la clave del servicio, la ref de la cita.
+3. ORDER BY n: los folios nuevos siguen el orden de los CSV.
+4. ON CONFLICT DO NOTHING en citas, para que un turno ya ocupado en la base no detenga toda la importación; el resumen lo reporta.
+
+Garantías.
+
+- Todo ocurre en una transacción con \set ON_ERROR_STOP on: si algo falla, no se importa nada.
+- Guarda contra reimportación: si ya hay clientes con teléfono 7241…, el script se detiene.
+- Resumen al final con RAISE NOTICE: filas importadas por tabla y aviso si hubo descuadres.
+
+\copy frente a COPY. COPY lo ejecuta el servidor y lee archivos del disco del servidor (requiere privilegios y que el archivo esté allá). \copy es un comando de psql: el cliente lee el archivo local y lo envía por la conexión. Para un archivo en la carpeta del proyecto, \copy es lo correcto. Las rutas son relativas a donde corre psql, por eso se ejecuta desde backend/.
+
+Codificación. PGCLIENTENCODING=UTF8 y \encoding UTF8: en Windows, la consola usa por defecto otra página de códigos y los acentos se corrompen.
+
+Efecto en la auditoría. Si los triggers ya están instalados, las 130 altas quedan registradas como movimientos manual con la fecha de hoy. Es correcto: entraron por psql.
+
+10.5 Verificación de la importación
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+La carga se comprobó en un PostgreSQL 16 real con una réplica de la base del usuario. La consulta de relaciones (cobros de cita sin cita, citas de un cliente inexistente, totales descuadrados) devolvió 0, 0 y vacío.
+
+11. MIGRACIÓN A ANGULAR: ANÁLISIS, ARQUITECTURA Y DECISIONES
+------------------------------------------------------------
+
+La migración trasladó el MVC nativo a Angular 22.2 sin cambiar de patrón, en fases con aprobación explícita: análisis (fase 1), arquitectura (fase 2) y una vista por entrega (fase 3). El backend y PostgreSQL no cambiaron: Angular consume los mismos endpoints.
+
+11.1 Fase 1: línea base medida
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  Métrica | Valor
+  JavaScript sin pruebas | 25 archivos, 2,143 líneas
+  HTML | 8 páginas, 489 líneas
+  CSS | 3 hojas, 754 líneas, 4 @media
+  Pruebas | 39 unitarias + 108 comprobaciones de navegador
+  innerHTML y localStorage | 0 usos reales
+  Inventario | 38 funcionalidades con ID (F-01 a F-38)
+
+Diagnóstico del patrón: MVC respetado de verdad. Modelos asíncronos sin DOM, vistas que no deciden, controladores con dependencias inyectadas y composición única. Conclusión: no hacía falta recuperarlo antes de migrar.
+
+Hallazgos que la migración resolvió:
+
+  ID | Hallazgo | Tratamiento
+  H-1 | 12 exportaciones muertas de la fase localStorage (generarHorarios, validarDisponibilidad…) | No se migran: esas reglas ya viven en la API y en la base
+  H-2 | Bootstrap JS cargado en 8 páginas solo para el menú móvil | Se reemplaza por un signal: Bootstrap JS y Angular no deben manipular el mismo DOM, y se ahorran unos 80 KB
+  H-3 | El mensaje de "sin conexión" mencionaba api/.env | Se corrige al moverlo al interceptor
+  H-4 | Patrones asíncronos repetidos a mano: guarda de secuencia (6 controladores), visibilitychange (5), botón ocupado (4), espera de 250 ms (2) | Angular los resuelve con httpResource, debounceTime y un servicio compartido
+  H-5 | Navegación con parámetros repartida entre vistas y controladores | Todo a routerLink + queryParams
+  H-6 | El cambio previo en efectivo calculado en el controlador | Pasa a un computed()
+
+Una corrección honesta del propio análisis: la primera versión de H-2 decía "0 usos" de Bootstrap JS, porque la búsqueda solo revisó el HTML y el atributo data-bs-toggle se escribía desde JavaScript. Se corrigió en la fase 2.
+
+11.2 Fase 2: decisión de arquitectura
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Se aplicaron las tres preguntas del marco socrático, solo al front:
+
+- ¿Qué cambió? La tecnología de la vista, no el dominio. Las reglas siguen en la API y en PostgreSQL.
+- ¿Qué amenaza? Rehacer de más: introducir un store o capas innecesarias, o perder comportamiento que ya validaban 108 pruebas.
+- ¿Qué quiero conseguir? Router, inyección de dependencias, binding y formularios tipados, aceptando el costo de reescribir templates y pruebas unitarias.
+
+Se conservó MVC. No se subió a SSV porque no hay estado compartido entre vistas: cada una carga lo suyo desde la API, y un store solo reenviaría llamadas, que es la señal de sobreingeniería. Hexagonal tampoco aplica: un solo adaptador de datos (HTTP). Sin NgRx.
+
+11.3 Tabla de equivalencias
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  Origen nativo | Destino Angular 22
+  Modelo ApiModel.js | core/modelos/.ts (interfaces) + core/datos/*-api.ts (@Injectable, providedIn: 'root'): lecturas con httpResource, escrituras con HttpClient
+  Vista .view.js + views/.html | Template del componente de página con @if / @for
+  Controlador *.controller.js | Clase del componente: delgada, con signal() / computed()
+  app.js (composición con data-page) | app.config.ts (providers) + app.routes.ts
+  services/api.js (ErrorApi, tiempo máximo) | Interceptor funcional apiInterceptor + error-api.ts, en un solo lugar
+  config.js (window.ESTETICA_API_URL) | InjectionToken API_URL (y API_TIMEOUT_MS, RELOJ)
+  navegacion.view.js | Componente navegacion con routerLinkActive y ariaCurrentWhenActive="page"
+  dom.js (moneda, teléfono) | Pipes puros moneda y telefono
+  dom.js (pintarErrores) | Clase ErroresServidor
+  dom.js (mostrarAviso + Reintentar) | Componente aviso con input() y output()
+  window.confirm inyectado | Servicio Confirmacion
+  visibilitychange en 5 controladores | Servicio VisibilidadPagina con un solo alVolver$
+
+11.4 Patrones asíncronos: de escritos a mano a Angular
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  Antes, en cada controlador | En Angular
+  Guarda de secuencia (++turno; if (miTurno === turno)) | httpResource con parámetros en signals: cancela la petición anterior por sí solo
+  setTimeout de 250 ms | debounceTime(250) sobre valueChanges
+  cargando(true/false) | recurso.isLoading()
+  Botón Reintentar | recurso.reload()
+  Recarga al volver a la pestaña | alVolver$ → reload() con takeUntilDestroyed()
+  Lectura de URLSearchParams | withComponentInputBinding(): los query params llegan como input()
+  Órdenes del usuario que pueden solaparse (Verificar) | Subject + switchMap
+
+Signals por defecto; RxJS solo donde ya es un flujo (HTTP, valueChanges, eventos del documento).
+
+11.5 Decisiones de la versión de Angular
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Se comprobó generando un proyecto vacío con el CLI 22.2, en lugar de suponerlo: zoneless por defecto (sin zone.js), componentes standalone, archivos sin sufijo (app.ts, no app.component.ts), recursos en public/ y Vitest como runner. Requiere Node ^22.22.3, ^24.15.0 o >=26. El CLI es dependencia de desarrollo del proyecto: npm install lo instala, no hace falta instalarlo de forma global.
+
+11.6 Desviaciones aprobadas
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  ID | Desviación | Motivo
+  D-1 | Las URL cambian: views/iniciar_cita.html?servicio=… → /agendar?servicio=… | El Router no usa archivos .html
+  D-2 | Se planeó reescribir el selector main > section > h1; al final no hizo falta | Se resolvió con display: contents (sección 13)
+  D-3 | El menú móvil pasa de Bootstrap JS a un signal | Un solo dueño del DOM
+  D-4 | Carpeta nueva frontend-angular/; frontend/ se conserva | Comparar lado a lado y correr ambas suites
+  D-5 | CORS_ORIGIN += http://localhost:4200 | ng serve usa el puerto 4200
+
+11.7 Rutas
+~~~~~~~~~~
+
+Cada página se carga con loadComponent (lazy): Inicio no descarga los formularios reactivos de las demás. Cada ruta declara data.pagina para el tema por área.
+
+  Ruta | Query params | data.pagina | Estado
+  '' | — | dashboard | Migrada
+  servicios | — | servicios | Migrada
+  horarios | — | horarios | Migrada
+  agendar | servicio, fecha, hora, telefono | iniciar-cita | Migrada
+  verificar | q | cotejar-cita | Migrada
+  reportes | — | reportes | Nueva
+  consultas | — | consultas | Nueva
+  cobrar, clientes, empleados | — | — | Página provisional "en migración"
+  ** | — | — | Redirige a Inicio
+
+12. FRONTEND ANGULAR VISTA POR VISTA
+------------------------------------
+
+Cada vista es un componente de página delgado: lee de un servicio de datos, guarda su estado de interfaz en signals y no decide reglas de negocio. Los templates conservaron los id de los elementos del nativo, para reutilizar las pruebas de navegador como pruebas de aceptación.
+
+12.1 Núcleo compartido (core/ y compartido/)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  Pieza | Qué hace y por qué así
+  apiInterceptor | Antepone API_URL, aplica un tiempo máximo (timeout) y convierte cualquier falla en ErrorApi { status, mensaje, errores, restriccion }. Un status 0 se traduce a "No hay conexión con el servidor" con la pista de revisar CORS_ORIGIN en backend/.env. Un solo lugar para todo el manejo de errores HTTP
+  InjectionToken: API_URL, API_TIMEOUT_MS, RELOJ | Configuración y "hoy" inyectables. Las pruebas fijan el reloj sin trucos sobre Date
+  Confirmacion | Envuelve window.confirm; en las pruebas se sustituye
+  VisibilidadPagina.alVolver$ | Un único listener de visibilitychange para todas las vistas
+  ErroresServidor | Guarda ErrorApi.errores en un signal, expone de(campo) y pone el foco en el primer campo con error según el orden del DOM, no el del objeto JSON
+  aviso | Mensaje con tipo (danger, warning, secondary…) y botón Reintentar opcional (output())
+  navegacion | 10 enlaces con routerLinkActive y aria-current="page"; menú móvil con un signal
+  Pipes moneda y telefono | Intl.NumberFormat('es-MX') → $126,745.00 MXN; 722 000 0001
+  fechas.ts | parsearFecha, fechaISO, ultimosDias: fechas como texto AAAA-MM-DD, sin Date en UTC
+  descargar-csv.ts | aCsv con BOM UTF-8 (Excel abre bien los acentos) y descarga sin servidor
+
+Por qué ErroresServidor y no setErrors() en los FormControl. Se probó primero el camino "de manual" y falló: disable() y setValue() recalculan la validez del control y borran los errores puestos a mano. Además, en el nativo los errores permanecían hasta el siguiente envío. Un signal aparte conserva ese comportamiento.
+
+Por qué Reactive Forms sin validadores. La validación definitiva está en la API y en la base; duplicarla en el front crea dos fuentes de verdad que tarde o temprano discrepan. El formulario solo transporta datos y pinta los errores que devuelve el servidor.
+
+[attr.disabled] contra formControlName. Deshabilitar con el atributo en un control reactivo lo pisa Angular y genera una advertencia. Se usa control.disable({ emitEvent: false }), que conserva el comportamiento nativo del navegador.
+
+12.2 App y el tema por área
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+App monta navegación, <router-outlet> y pie, y asigna <body data-page> desde route.data.pagina en cada navegación. Así el CSS global del nativo ([data-page="horarios"] { --color-area: … }) siguió funcionando sin cambios.
+
+12.3 Servicios
+~~~~~~~~~~~~~~
+
+- ServiciosApi.catalogo() devuelve un httpResource: carga solo y expone isLoading(), error(), hasValue() y reload().
+- rutaImagen convierte las rutas heredadas ../assets/… a rutas de public/.
+- Cada tarjeta es un routerLink a /agendar?servicio=clave.
+- Se lee con hasValue() y no con value(): value() lanza una excepción si el recurso está en error.
+
+12.4 Horarios
+~~~~~~~~~~~~~
+
+- La fecha es un signal; la disponibilidad, un httpResource que depende de ella. Cambiar la fecha cancela la consulta anterior.
+- linkedSignal conserva el resultado anterior mientras se carga el nuevo: la lista no parpadea en blanco en cada cambio de fecha.
+- Un 400 (domingo, fecha pasada) se muestra como motivo, no como error. Es información de negocio, no una falla.
+- Cada horario libre enlaza a /agendar?fecha=&hora=. Al volver a la pestaña, se recarga.
+
+12.5 Agendar
+~~~~~~~~~~~~
+
+- Los query params (servicio, fecha, hora, telefono) llegan como input() gracias a withComponentInputBinding(), y se leen en ngOnInit porque antes no están asignados.
+- Reconocimiento por teléfono: valueChanges → debounceTime → switchMap a ClientesApi.porTelefono(), que convierte un 404 en null ("cliente nuevo") en lugar de en un error. switchMap reemplaza al contador manual del nativo.
+- Las horas libres dependen de la fecha (otro httpResource); el select de hora se deshabilita sin fecha.
+- Al enviar: botón ocupado, errores por campo y, si el turno se acaba de ocupar (409), se recargan las horas.
+- La ficha de confirmación recibe el foco con afterNextRender e incluye un enlace a /verificar?q=folio.
+
+12.6 Verificar
+~~~~~~~~~~~~~~
+
+- Búsqueda por folio, nombre o teléfono; precarga desde ?q=.
+- Subject + switchMap: las búsquedas son órdenes del usuario (enviar, repetir tras una acción, volver a la pestaña). Si llega una nueva, la anterior se descarta. Es el caso donde RxJS es más claro que un recurso.
+- Confirmar y cancelar marcan solo esa fila como ocupada. Cancelar pide confirmación. Ante un 409 o 404, la búsqueda se repite en silencio y muestra el estado real.
+
+12.7 Reportes
+~~~~~~~~~~~~~
+
+Tres pestañas con un periodo común: Bimestre (60), Trimestre (90), Cuatrimestre (120) o un rango personalizado.
+
+- Ingresos: resumen con la variación contra el periodo anterior, gráfica diaria, tabla por servicio (ranking, ticket, participación) y tabla por método con fila de total.
+- Auditoría: cambios de precio y movimientos de clientes, con una marca visible en los cambios de origen manual.
+- Caja: cierres del periodo con su descuadre, y el botón "Cerrar la caja de hoy" (con confirmación) que se oculta si hoy ya está cerrado.
+- Carga perezosa por pestaña: cada recurso recibe el periodo solo cuando su pestaña está activa; en las demás recibe undefined y httpResource queda inactivo. Abrir Reportes no dispara 5 peticiones.
+- Las pestañas usan role="tablist", role="tab", aria-selected y role="tabpanel".
+
+La gráfica de ingresos es un componente propio en SVG, sin librerías: barras para los ingresos diarios y una línea para el promedio móvil de 7 días, escala con un máximo "redondo", tooltip al pasar el cursor y la tabla de datos dentro de un <details> para lectores de pantalla y para quien prefiera los números. Los días en 0 no dibujan una barra vacía (path) que se vea como un borde suelto. Su paleta se explica en la sección 13.
+
+12.8 Consultas
+~~~~~~~~~~~~~~
+
+- catalogo.ts define las 6 consultas de detalle en lenguaje de negocio: título, descripción, columnas (clave, titulo, tipo, valor secundario, texto si está vacío), mensaje cuando no hay filas y si usa el periodo.
+- Columna con valor secundario: el nombre del cliente arriba y su folio debajo, en un tono más suave. Una sola columna da contexto sin duplicar el ancho de la tabla.
+- tarjeta-consulta es un componente genérico que pinta cualquier consulta a partir de su definición: agregar una consulta nueva es agregar una entrada al catálogo, no un componente.
+- Estado: seleccion (casillas marcadas), aplicadas (lo que se cargó), filtros por tarjeta y hayCambios como computed.
+- verDetalle('agenda' | 'vencidas', fila): marca, aplica, filtra y hace scroll con afterNextRender, cuando la tarjeta ya existe en el DOM.
+- ultimosDias() se movió de reportes.ts a core/util/fechas.ts: importarlo desde Reportes metía todo ese componente en el chunk de Consultas.
+
+12.9 Vistas pendientes
+~~~~~~~~~~~~~~~~~~~~~~
+
+Cobrar, Clientes y Empleados muestran la página provisional en-migracion, que indica usar la versión nativa mientras tanto. Su diseño ya está en la fase 2: Reactive Forms, debounceTime(250) en los filtros y un componente hijo para el historial de Clientes.
+
+13. DISEÑO VISUAL: TEMA, PALETA, CSS AVANZADO Y VISUALIZACIÓN DE DATOS
+----------------------------------------------------------------------
+
+El tema "elegante y cálido" se construyó con tokens CSS en tres capas, sobre Bootstrap 5.3 y sin fuentes externas. Toda pareja de texto y fondo se verificó contra WCAG 2.1 AA (≥ 4.5:1). El mismo archivo tema-estetica.css sirve al front nativo y al de Angular.
+
+13.1 Tres capas de tokens
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+1. Paleta: los colores de la marca, con nombre y escala (--paleta-marca-500). Es lo único que se cambia para re-tematizar.
+2. Semánticos: qué significa cada color en el sistema (--color-accion, --color-texto-suave, --color-borde). Los componentes solo usan esta capa.
+3. Por área: [data-page="…"] redefine --color-area y --color-area-suave. Cada vista tiene un acento propio sin una sola regla nueva en los componentes.
+
+Por qué tres capas. Si un botón usara #a8405f directamente, cambiar la marca exigiría buscar y reemplazar en todo el CSS. Si usara --paleta-marca-500, no se podría cambiar "el color de acción" sin cambiar "el rosa". La capa semántica separa ambas decisiones.
+
+13.2 La paleta y su porqué
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  Familia | Tokens | Uso | Razón
+  Rosa (marca) | 50, 100, 200, 500 #a8405f, 600 #8c3651, 700 #722b42 | Acción, enlaces, foco | Un rosa profundo, no pastel: transmite estética y belleza sin perder contraste. Blanco sobre 500 = 5.9:1
+  Dorado (detalle) | 200, 300, 400 #c9a45c, 700 #7d5f22 | Bordes, líneas, separadores; 700 para texto | Aporta lujo. El dorado claro (300/400) nunca es texto: no alcanza contraste sobre crema o blanco
+  Carbón (texto) | 900 #2b2427, 700, 600, 500 #6b5e62, 200 | Texto y contraste | Negro cálido con matiz rosado, no gris neutro: no rompe la calidez. Texto sobre fondo = 14.2:1
+  Crema (fondos) | 50 #fbf7f4, 100, 200, blanco | Fondo, superficies, bordes | El blanco puro cansa y se ve clínico; la crema da calidez y separa superficies
+  Estados | éxito #2e7656, peligro #b3261e, aviso #e9b44c, info #2f6383 | Mensajes y estados | Afinados a la paleta (menos saturados que los de Bootstrap). El aviso lleva texto oscuro (8.0:1)
+
+Acentos por área: Servicios e Inicio en rosa; Horarios en azul info; Agendar en rosa 600; Verificar en carbón 700; Cobrar en verde éxito (dinero); Clientes en dorado 700; Empleados en carbón 900; Reportes en rosa 700; Consultas en azul info. El acento orienta al usuario sobre dónde está sin leer el título.
+
+13.3 Tipografía y forma
+~~~~~~~~~~~~~~~~~~~~~~~
+
+- Títulos en serif del sistema ("Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif) y texto en system-ui. La serif da el tono elegante; ninguna fuente se descarga, así que no hay parpadeo ni dependencia externa.
+- Radios de 0.5, 0.75 y 1 rem; sombras de tres niveles con el carbón de la paleta (no negro puro) a baja opacidad.
+- Una sola transición (0.18s ease) para todo el sistema.
+
+13.4 Puente a Bootstrap
+~~~~~~~~~~~~~~~~~~~~~~~
+
+En lugar de sobrescribir clases una por una, el tema redefine las variables globales de Bootstrap con los tokens: --bs-body-bg: var(--color-fondo), --bs-border-color: var(--color-borde), --bs-border-radius: var(--radio-sm), etc. Bootstrap sigue funcionando igual, pero habla el idioma del tema. Después se embellecen los componentes (tarjetas, botones, formularios, tablas, alertas) con los mismos tokens.
+
+13.5 CSS avanzado aplicado
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+- display: contents en el elemento raíz de cada página Angular. Angular inserta el elemento del componente entre <main> y su contenido, y eso rompía selectores del nativo como main > section > h1. Con display: contents, el elemento no genera caja: la estructura visual queda igual que en el nativo y el CSS no se tocó (la desviación D-2 dejó de ser necesaria).
+- Global contra encapsulado. Tokens, base, navegación y tema por área son globales; los bloques que dependían de un id de una sola vista pasaron al CSS de su componente. Un caso sutil: la regla de prefers-reduced-motion para #lista-servicios .card:hover se movió a servicios.css, porque la regla encapsulada tiene más especificidad que la global y la anulaba.
+- :focus-visible con contorno de 2 px en el color de acción: foco visible al usar teclado, sin anillo al hacer clic.
+- prefers-reduced-motion: anula transiciones, animaciones, scroll-behavior y los transform de hover.
+- @media print: oculta navegación, pie y botones; fondo blanco. Los reportes se imprimen limpios.
+- Menú compacto entre 992 y 1199 px. Con 9 secciones el menú desbordaba la página 14 px a 992 px; se reduce el espaciado solo en ese rango. Se verificó también con 10 secciones.
+- white-space: nowrap en montos y fechas de las tablas: un monto partido en dos líneas ($12, / 450.00) se lee mal.
+- Encabezados de tabla a 0.72rem en Consultas: el tema fija su propio tamaño de encabezado, que no hereda el de la tabla. La tabla maestra medía 1,329 px en un contenedor de 1,082 px; con esa fuente y una columna menos ("Última cita") quedó exactamente en 1,082.
+- Contraste del aviso. El amarillo --paleta-aviso no alcanza contraste como texto sobre blanco; en Consultas se usa como borde con fondo dorado-200 y el texto en dorado-700.
+- ::selection en rosa 100 con texto carbón: incluso la selección es de la marca.
+
+13.6 La gráfica de ingresos: decisiones de visualización
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+- Forma. Ingresos diarios = barras (cantidades discretas por día); promedio móvil = una línea encima (tendencia). Un solo eje: ambas series están en pesos. Nunca dos escalas en el mismo eje.
+- Escala redonda. El máximo del eje se redondea hacia arriba a un valor legible, con pasos de 1, 2 o 5 × 10ⁿ y 4 líneas de cuadrícula, para que las marcas sean números como 2,000 o 5,000. Cada barra tiene la punta redondeada 4 px y la base recta, apoyada en la línea base.
+- Colores validados, no elegidos a ojo. Barras en #a8405f (rosa de marca) y línea en #2a78d6 (azul). El par se pasó por un validador de paletas que mide la separación de color para los tres tipos de daltonismo más comunes y el contraste contra el fondo. El dorado y el azul info del tema no pasaron: se veían elegantes, pero no alcanzaban la separación mínima en la simulación de daltonismo. Se conservó la marca en las barras y se eligió un azul que sí separa.
+- Accesibilidad. La identidad de cada serie no depende solo del color: hay leyenda, la línea y las barras tienen formas distintas, y la tabla completa está en un <details> debajo.
+- Tooltip por día con fecha, ingresos, número de cobros y promedio de 7 días, colocado a la izquierda o a la derecha según el espacio, con zonas de detección más anchas que la barra.
+- Días en cero sin trazo. Una barra de altura 0 con esquinas redondeadas dibujaba una línea suelta en la base; esos días no generan path.
+
+14. INTERACCIÓN Y EXPERIENCIA DE USUARIO
+----------------------------------------
+
+La experiencia se diseñó para una recepcionista que atiende clientes mientras usa el sistema: cada pantalla debe decir siempre en qué estado está (cargando, vacía, con error, lista) y nunca dejar una acción sin respuesta visible.
+
+14.1 Los cuatro estados de toda vista
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  Estado | Cómo se muestra
+  Cargando | Indicador en el lugar del contenido; con linkedSignal, el contenido anterior se conserva mientras llega el nuevo
+  Vacío | Mensaje en lenguaje de negocio ("No hay citas vencidas sin cobrar en este periodo"), no una tabla vacía
+  Error | aviso con el mensaje del servidor y botón Reintentar; sin conexión, la pista de revisar CORS_ORIGIN
+  Motivo de negocio | Un 400 esperado (domingo, fecha pasada, día lleno) se muestra como explicación, no como error rojo
+
+14.2 Formularios
+~~~~~~~~~~~~~~~~
+
+- El servidor decide y el front explica. Cada error llega con su campo y se pinta junto a él; el foco va al primer campo con error en el orden visual de la página, con aria-invalid.
+- Botón ocupado durante el envío: evita cobros o citas duplicados por doble clic.
+- Reconocimiento por teléfono: se escribe primero el teléfono y el sistema completa el nombre o avisa "cliente nuevo". Ordenar los campos así evita registrar dos veces a la misma persona.
+- Precarga por URL: de Servicios a Agendar (?servicio=), de Horarios a Agendar (?fecha=&hora=), de la ficha a Verificar (?q=). Cada vista es un paso del flujo y llega con el contexto del anterior.
+- Confirmación solo en acciones destructivas o contables: cancelar una cita, cerrar la caja.
+
+14.3 Concurrencia visible
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+- Turno ocupado mientras se llenaba el formulario: la API responde 409, el mensaje aparece en el campo hora y la lista de horas se recarga sola.
+- Cita cambiada desde otro equipo: confirmar o cancelar devuelve 409 y la búsqueda se repite en silencio con el estado real.
+- Volver a la pestaña recarga los datos: lo que otro equipo cambió aparece sin pulsar nada.
+- Respuestas fuera de orden se descartan (switchMap y httpResource): una búsqueda lenta nunca pisa a una más reciente.
+
+14.4 Interacción de las vistas analíticas
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+- Periodos con nombre de negocio (Bimestre, Trimestre, Cuatrimestre) en lugar de pedir dos fechas; el rango personalizado sigue disponible.
+- Consultas bajo demanda: casillas + Aplicar. La descripción de cada consulta está visible, no escondida en un tooltip, porque el administrador decide qué ver a partir de ella.
+- De lo general a lo particular: del diagnóstico por empleado y servicio, "Ver detalle" abre la agenda o las vencidas ya filtradas.
+- Transparencia: "Ver SQL" muestra la consulta real instalada. Para un administrador técnico o un auditor, el número viene con su procedencia.
+- Exportación CSV por tarjeta, con BOM para que Excel respete los acentos.
+- Marca "manual" en la auditoría: un cambio hecho fuera del sistema salta a la vista.
+
+14.5 Accesibilidad
+~~~~~~~~~~~~~~~~~~
+
+- aria-current="page" en el enlace activo del menú.
+- Pestañas de Reportes con roles ARIA completos (tablist, tab, tabpanel, aria-selected).
+- Botones de periodo con aria-pressed.
+- Tooltip de la gráfica con role="status" y tabla equivalente en <details>.
+- Foco visible con teclado, preferencia de movimiento reducido respetada y contraste AA en todo par texto-fondo.
+- El color nunca es el único portador de significado: estados con texto en insignias, series con leyenda y forma.
+
+14.6 Responsive
+~~~~~~~~~~~~~~~
+
+- Grid de Bootstrap y los 4 breakpoints del nativo conservados.
+- Menú colapsable en móvil (controlado por un signal) y compacto entre 992 y 1199 px.
+- Tablas anchas dentro de contenedores con desplazamiento horizontal; montos y fechas sin partirse.
+- Probado en 390 px de ancho (móvil) en la versión nativa y en 992 y 1200 px en Angular.
+
+15. PRUEBAS Y VERIFICACIÓN
+--------------------------
+
+Cada capa se prueba contra su propia responsabilidad, y ninguna prueba usa la base del usuario. La regla de cierre de cada entrega fue: toda la regresión en verde, en todas las capas, no solo en la que se modificó.
+
+15.1 Suites
+~~~~~~~~~~~
+
+  Capa | Herramienta | Cantidad | Qué cubre
+  Esquema SQL | validar-esquema.cjs (PostgreSQL embebido) | 46 | Cada CHECK, el índice parcial, sin cascadas, precio congelado, auditoría y triggers, ROLLUP, cierre y doble cierre, consultas sin pérdida de filas, NOT IN contra EXCEPT, ningún id en las salidas
+  API unitarias | Vitest | 5 | Reglas que dependen de la fecha y la zona horaria
+  API e2e | Vitest + PGlite | 50 | 26 generales + 16 de auditoría, reportes y caja + 8 de consultas: HTTP real contra PostgreSQL embebido, transacciones, errores por restricción, concurrencia
+  Front nativo | node:test | 39 | Modelos y controladores con la API simulada
+  Front Angular | Vitest (ng test) | 84 | Servicios de datos con provideHttpClientTesting, interceptor, pipes, utilidades y componentes con lógica
+  Navegador real | Playwright (Chromium) | 111 | Consultas 25, Agendar 22, Reportes 21, Verificar 15, Servicios 14, Horarios 14
+  Contrato HTTP | Postman + Newman | 36 peticiones, 61 comprobaciones | Referencia ejecutable de la API
+
+15.2 PGlite: PostgreSQL real dentro de las pruebas
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Las pruebas e2e levantan PGlite (PostgreSQL compilado a WebAssembly) con los mismos archivos de db/, y pg se conecta por el protocolo normal. Se prueban las restricciones reales, no un simulacro, en cualquier equipo y sin tocar datos.
+
+Una diferencia que hubo que resolver. PGlite atiende todas las conexiones en una sola sesión e ignora el application_name de cada cliente, así que la auditoría no podía distinguir "sistema" de "manual". La solución: fijar SET application_name = 'estetica-api' en la sesión compartida y un helper manual() que lo cambia temporalmente para simular psql.
+
+15.3 Aceptación en navegador real
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Los templates de Angular conservaron los id del nativo, así que las comprobaciones de navegador del nativo se reutilizaron casi sin cambios como pruebas de aceptación. Corren contra la pila completa: Angular + API + PostgreSQL con esquema, seed, auditoría e histórico. Incluyen flujos completos, errores, XSS, vista móvil y consola sin errores. Se verificó además en un PostgreSQL 16 real con una réplica de la base del usuario (seed + CSV + auditoría + consultas).
+
+15.4 Lecciones de las pruebas en Angular zoneless
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+- whenStable() se cuelga con una petición HTTP pendiente: espera a que no haya trabajo, y la petición nunca se responde sola. El orden correcto es TestBed.tick(), responder la petición con HttpTestingController y después esperar.
+- Sin zone.js no hay detección de cambios automática tras un evento simulado. Hacer clic sobre un botón que todavía estaba deshabilitado no hacía nada; hay que dejar que el signal se propague antes.
+- Las pruebas de fechas fijan el reloj con el token RELOJ, para no caducar.
+
+15.5 Fallas que eran de las pruebas, no de la aplicación
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Se registraron porque enseñan a leer una prueba roja antes de tocar el código:
+
+- Un precio que se repetía entre corridas porque la prueba cambiaba el mismo servicio al mismo valor (el trigger, correctamente, no registraba nada).
+- Un cobro de $50 contra un precio de $51: la base, correctamente, rechazó el pago insuficiente.
+- "Hoy − 4" caía en domingo; la prueba pasó a usar el último día cerrado.
+- CALL no admite subconsultas como argumento: la prueba consulta max(dia) primero.
+- ultimosDias probado dentro de un describe con TestBed que no necesitaba.
+
+15.6 Defectos reales encontrados por las pruebas
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  Defecto | Corrección
+  ->> 'id' devolvía texto en la auditoría | Cast ::integer
+  División entre cero en ROLLUP sin cobros | nullif(…, 0)
+  Funciones de zona horaria declaradas IMMUTABLE | STABLE
+  0 % de clientes de paso en el histórico | random() fuera del LATERAL
+  Variación falsa de +57.9 % | Historial extendido a 245 días
+  Clientes del seed contados como altas de hoy | Auditoría instalada después del seed
+  Desborde del menú a 992 px (dos causas: menú y tabla de métodos) | Menú compacto en ese rango + ajuste de la tabla
+  Tabla maestra de 1,329 px en 1,082 px | Una columna menos y encabezados compactos
+  GET /api/citas sin parámetro devolvía [] y el listado de endpoints sugería lo contrario | Es por diseño (Verificar busca); se corrigió la documentación del endpoint raíz
+
+16. GUÍA DE REPLICACIÓN PASO A PASO
+-----------------------------------
+
+Con el ZIP del proyecto y estos pasos, el sistema completo queda funcionando en un equipo nuevo. El orden de los scripts SQL no es opcional: cada uno depende del anterior.
+
+16.1 Requisitos
+~~~~~~~~~~~~~~~
+
+  Herramienta | Versión
+  PostgreSQL | 14 o superior (probado en 16)
+  Node.js | ^22.22.3, ^24.15.0 o >=26 (lo exige Angular 22; la API acepta 20+)
+  npm | El que trae Node. No hace falta instalar Angular CLI ni Nest CLI de forma global
+  Servidor HTTP para el nativo | XAMPP, Live Server o npx http-server (los ES Modules no cargan desde file://)
+
+16.2 Base de datos
+~~~~~~~~~~~~~~~~~~
+
+Desde backend/, en PowerShell:
+
+    $env:PGCLIENTENCODING = "UTF8"
+    createdb -U postgres estetica
+    psql -U postgres -d estetica -f db/schema.sql                 # 1. tablas, reglas, índices, vistas
+    psql -U postgres -d estetica -f db/seed.sql                   # 2. datos de ejemplo
+    psql -U postgres -d estetica -f db/auditoria-reportes.sql     # 3. auditoría, reportes, cierre de caja
+    psql -U postgres -d estetica -f db/consultas.sql              # 4. consultas (requiere el 3)
+    # Opcional: uno u otro (cada combinación se probó por separado):
+    psql -U postgres -d estetica -f db/csv/importar-csv.sql       # 130 clientes, 40 empleados, 35 servicios, 125 citas y cobros
+    psql -U postgres -d estetica -f db/seed-historico.sql         # ~8 meses de historia para los reportes
+
+Comprobación: psql -U postgres -d estetica -c "\df estetica.fn_*" debe listar las funciones de reportes y consultas.
+
+Por qué ese orden. El seed va antes de la auditoría para que sus clientes no cuenten como altas de hoy. consultas.sql usa dia_negocio() e inicio_dia_negocio(), que crea auditoria-reportes.sql. Los scripts 3 y 4 son re-ejecutables; schema.sql borra y recrea el esquema estetica (solo ese esquema).
+
+16.3 API
+~~~~~~~~
+
+    cd backend
+    npm install
+    copy .env.example .env      # escribir PGPASSWORD y revisar CORS_ORIGIN
+    npm run start:dev           # http://localhost:3000/api
+
+- .npmrc trae legacy-peer-deps=true: sin él, npm 10 falla con un conflicto de dependencias de las herramientas que genera NestJS 12.
+- CORS_ORIGIN debe incluir cada origen exacto con puerto: http://localhost:4200 para Angular y el del servidor del nativo (por ejemplo http://localhost:8080). Si falta, la página dice "No hay conexión con el servidor" y la terminal de la API muestra WARN [CORS] Origen bloqueado: … con el origen a agregar.
+- .env nunca se comparte ni se sube a un repositorio. .env.example es la plantilla.
+- http://localhost:3000/api lista los endpoints disponibles.
+
+16.4 Front Angular
+~~~~~~~~~~~~~~~~~~
+
+    cd frontend-angular
+    npm install
+    npm start                    # ng serve → http://localhost:4200
+
+npm install instala dependencies y devDependencies (incluido el CLI de Angular). --omit=dev solo aplica para instalar un paquete ya compilado, no para desarrollar.
+
+16.5 Front nativo
+~~~~~~~~~~~~~~~~~
+
+Servir la carpeta frontend/ y abrir Layouts/dashboard.html. Sus pruebas: npm test dentro de frontend/ (sin dependencias).
+
+16.6 Verificar la instalación
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    cd backend
+    node db/validar-esquema.cjs db   # 46 PASS
+    npm test                         # 5
+    npm run test:e2e                 # 50 (no usa tu base)
+    cd ../frontend-angular
+    npm test                         # 84
+    npx ng build                     # sin errores
+
+16.7 Recorrido manual recomendado
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+1. Servicios → elegir uno → Agendar con un teléfono nuevo → ficha.
+2. Repetir el mismo turno desde otra pestaña: debe responder "Ese horario ya está ocupado".
+3. Verificar → buscar el folio → confirmar.
+4. /reportes con y sin seed-historico; cambiar entre Bimestre, Trimestre y Cuatrimestre.
+5. Cerrar la caja de hoy e intentar un cobro: debe dar 409.
+6. Cambiar un precio desde psql: debe aparecer como manual en la pestaña de auditoría.
+7. /consultas con "Todo" y con 60 días; abrir "Ver detalle" desde la maestra y "Ver SQL" en una tarjeta.
+
+16.8 Para reconstruirlo desde cero
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Un equipo que quiera replicar el diseño (no solo instalarlo) debería seguir el mismo orden de construcción del proyecto, porque cada etapa estabiliza la siguiente:
+
+1. Fijar las reglas de negocio por escrito (horarios, estados, métodos de pago).
+2. Esquema con restricciones con nombre e índice único parcial, y un validador que intente violarlas.
+3. API delgada: DTOs, transacciones y traducción de restricciones a HTTP.
+4. Front que solo pregunta y muestra, con una sola forma de error.
+5. Auditoría genérica, después reportes y por último el cierre de caja.
+6. Consultas sobre una función de clasificación única (situacion_cita).
+7. Migración del front por fases, con las pruebas de navegador como aceptación.
+
+17. LIMITACIONES, DEUDA TÉCNICA Y PRÓXIMOS PASOS
+------------------------------------------------
+
+El sistema está completo para su propósito (un punto de venta de un solo operador), y sus límites son decisiones documentadas, no olvidos. El costo más alto que tiene hoy es mantener dos frontends vivos.
+
+17.1 Limitaciones conscientes
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  Limitación | Por qué se aceptó | Qué haría falta
+  Sin autenticación ni roles | Un solo operador en recepción, uso local | Autenticación en la API antes de exponerla en red, empezando por el cierre de caja y la edición de precios
+  La auditoría registra el origen, no la persona | Sin usuarios no hay a quién atribuir | Con autenticación, pasar el usuario a la sesión (SET LOCAL) y guardarlo en auditoria
+  La tabla auditoria se puede modificar con acceso directo | Sin roles de base | Rol propio para la API y REVOKE UPDATE, DELETE ON auditoria
+  Folios con huecos | Comportamiento normal de las secuencias | Aceptable; un folio sin huecos requeriría serializar las inserciones
+  Todos los servicios duran un turno de 30 min | Simplificación heredada | Duración por servicio y restricción de exclusión por rango de tiempo
+  Empleados no asignados a las citas | El nativo no lo tenía | Asignar estilista y cambiar el índice a (fecha, hora, empleado_id)
+  Se reportan ingresos, no ganancias | No hay costos de operación registrados | Registrar gastos e insumos
+  Datos personales sin aviso de privacidad | Demo | Aviso de privacidad conforme a la LFPDPPP
+
+17.2 Deuda técnica
+~~~~~~~~~~~~~~~~~~
+
+1. Dos frontends. Cobrar, Clientes y Empleados siguen solo en el nativo. Hasta migrarlas, la operación diaria depende del nativo y Angular es "la parte de análisis". Al terminar, el plan aprobado (D-4) es mover frontend/ a legado/frontend-nativo/ y renombrar frontend-angular/ como frontend/.
+2. Control de precio en la interfaz. La API (PATCH /servicios/:clave/costo) y la auditoría están listas; falta el control en la vista Servicios de Angular.
+3. Instalación manual de los SQL. El orden vive en el README. Si el esquema sigue creciendo, conviene una herramienta de migraciones (scripts numerados con registro de versión, Flyway o dbmate).
+4. Las pruebas de navegador viven fuera del repositorio. Integrarlas como suite e2e de Angular haría la aceptación reproducible por cualquiera.
+
+17.3 Invariantes que cualquier extensión debe respetar
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+- Una regla que no depende de "hoy" va en la base, con una restricción con nombre; la API la traduce por ese nombre.
+- Una regla que depende de "hoy" va en la API, calculada en America/Mexico_City.
+- El front no decide reglas: pregunta, muestra y pinta errores por campo.
+- Nunca se borra con cascada: baja lógica.
+- Los precios se congelan en la cita y en el cobro.
+- Ningún id interno sale de la API.
+- Los triggers solo auditan.
+- LEFT JOIN donde la unión puede ser NULL; EXCEPT o NOT EXISTS, nunca NOT IN sobre columnas que admiten NULL.
+- Filtrar fechas por rango para usar los índices.
+- Toda paleta de visualización se valida con una herramienta, no a ojo.
+- Se sube de arquitectura (MVC → SSV → Hexagonal) solo cuando una amenaza concreta lo justifica.

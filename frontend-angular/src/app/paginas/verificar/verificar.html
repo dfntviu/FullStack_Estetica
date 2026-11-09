@@ -1,0 +1,86 @@
+<main class="container">
+  <h1 class="text-center">Verificar Cita</h1>
+
+  <form
+    id="formBusqueda"
+    class="form-estetica mx-auto row g-2 align-items-end"
+    role="search"
+    novalidate
+    (submit)="$event.preventDefault(); buscar(criterio.value)"
+  >
+    <div class="col-sm-8">
+      <label for="criterio" class="form-label">Folio, nombre o teléfono del cliente</label>
+      <input
+        #criterio
+        type="search"
+        class="form-control"
+        id="criterio"
+        name="criterio"
+        placeholder="Ej. A001, María o 722 000 0001"
+        [value]="q() ?? ''"
+      />
+    </div>
+    <div class="col-sm-4 d-grid">
+      <button type="submit" class="btn btn-primary" [disabled]="buscando()">{{ buscando() ? 'Buscando…' : 'Buscar' }}</button>
+    </div>
+  </form>
+
+  <div class="mt-3" id="aviso-cotejo" aria-live="polite">
+    @if (aviso(); as a) {
+      <app-aviso [tipo]="a.tipo" [texto]="a.texto" [conReintentar]="!!a.reintentar" (reintentar)="a.reintentar?.()" />
+    }
+  </div>
+
+  <div class="mt-3" id="resultado" [attr.aria-busy]="buscando()">
+    @if (citas().length) {
+      <div class="table-responsive">
+        <table class="table table-hover align-middle">
+          <thead>
+            <tr>
+              <th scope="col">Folio</th>
+              <th scope="col">Cliente</th>
+              <th scope="col">Servicio</th>
+              <th scope="col">Fecha</th>
+              <th scope="col">Hora</th>
+              <th scope="col">Estado</th>
+              <th scope="col">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (c of citas(); track c.id) {
+              <tr [attr.data-cita]="c.id">
+                <td>{{ c.id }}</td>
+                <td>{{ c.nombre }}</td>
+                <td>{{ c.servicio }}</td>
+                <td>{{ c.fecha }}</td>
+                <td>{{ c.hora }}</td>
+                <td>
+                  <span class="badge text-bg-{{ colorEstado[c.estado] }}" [attr.data-estado]="c.id">{{ c.estado }}</span>
+                </td>
+                <!-- d-flex va en un contenedor interno: aplicado al <td> rompe el modelo de tabla -->
+                <td>
+                  <div class="d-flex gap-1 flex-wrap">
+                    @if (c.estado === 'pendiente') {
+                      <button type="button" class="btn btn-sm btn-success" [disabled]="ocupada(c.id)" (click)="confirmar(c)">Confirmar</button>
+                    }
+                    @if (activa(c)) {
+                      <button type="button" class="btn btn-sm btn-outline-danger" [disabled]="ocupada(c.id)" (click)="cancelar(c)">Cancelar</button>
+                      <a
+                        class="btn btn-sm btn-primary"
+                        routerLink="/cobrar"
+                        [queryParams]="{ cita: c.id }"
+                        [class.disabled]="ocupada(c.id)"
+                        [attr.aria-disabled]="ocupada(c.id) ? true : null"
+                        >Cobrar</a
+                      >
+                    }
+                  </div>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </div>
+</main>

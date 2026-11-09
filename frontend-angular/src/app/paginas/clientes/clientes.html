@@ -1,0 +1,183 @@
+<main class="container-xl">
+  <h1 class="text-center">Clientes</h1>
+  <p class="text-center text-muted">Registra, consulta y da seguimiento a los clientes de la estética.</p>
+
+  <div class="row g-4">
+    <div class="col-lg-4">
+      <section class="card panel-sticky" aria-labelledby="tituloFormCliente">
+        <div class="card-body">
+          <h2 id="tituloFormCliente" class="h5">{{ editandoId() ? 'Editar cliente ' + editandoId() : 'Registrar cliente' }}</h2>
+          <form id="formCliente" novalidate [formGroup]="form" (ngSubmit)="guardar()">
+            <div class="mb-3">
+              <label for="cliNombre" class="form-label">Nombre completo</label>
+              <input
+                type="text"
+                class="form-control"
+                id="cliNombre"
+                formControlName="nombre"
+                autocomplete="off"
+                required
+                [class.is-invalid]="errores.de('nombre')"
+                [attr.aria-invalid]="errores.de('nombre') ? true : null"
+              />
+              <div class="invalid-feedback" data-error-for="nombre">{{ errores.de('nombre') }}</div>
+            </div>
+            <div class="mb-3">
+              <label for="cliTelefono" class="form-label">Teléfono</label>
+              <input
+                type="tel"
+                class="form-control"
+                id="cliTelefono"
+                formControlName="telefono"
+                placeholder="10 dígitos"
+                inputmode="numeric"
+                required
+                [class.is-invalid]="errores.de('telefono')"
+                [attr.aria-invalid]="errores.de('telefono') ? true : null"
+              />
+              <div class="form-text">Identifica al cliente: no puede repetirse.</div>
+              <div class="invalid-feedback" data-error-for="telefono">{{ errores.de('telefono') }}</div>
+            </div>
+            <div class="mb-3">
+              <label for="cliCumple" class="form-label">Cumpleaños <span class="text-muted">(opcional)</span></label>
+              <input
+                type="text"
+                class="form-control"
+                id="cliCumple"
+                formControlName="cumpleanos"
+                placeholder="DD/MM"
+                maxlength="5"
+                inputmode="numeric"
+                [class.is-invalid]="errores.de('cumpleanos')"
+                [attr.aria-invalid]="errores.de('cumpleanos') ? true : null"
+              />
+              <div class="invalid-feedback" data-error-for="cumpleanos">{{ errores.de('cumpleanos') }}</div>
+            </div>
+            <div class="mb-3">
+              <label for="cliObs" class="form-label">Observaciones <span class="text-muted">(opcional)</span></label>
+              <textarea
+                class="form-control"
+                id="cliObs"
+                formControlName="observaciones"
+                rows="3"
+                maxlength="300"
+                placeholder="Notas técnicas: fórmula de tinte, tipo de cabello, preferencias"
+                [class.is-invalid]="errores.de('observaciones')"
+                [attr.aria-invalid]="errores.de('observaciones') ? true : null"
+              ></textarea>
+              <div class="invalid-feedback" data-error-for="observaciones">{{ errores.de('observaciones') }}</div>
+            </div>
+            <div class="d-flex gap-2">
+              <button type="submit" id="btnGuardarCliente" class="btn btn-success flex-grow-1" [disabled]="ocupado()">
+                {{ ocupado() ? 'Guardando…' : editandoId() ? 'Guardar cambios' : 'Registrar cliente' }}
+              </button>
+              <button type="button" id="btnCancelarEdicion" class="btn btn-outline-secondary" [hidden]="!editandoId()" (click)="salirDeEdicion()">
+                Cancelar
+              </button>
+            </div>
+          </form>
+          <div id="aviso-form-cliente" class="mt-3" aria-live="polite">
+            @if (avisoForm(); as a) {
+              <app-aviso [tipo]="a.tipo" [texto]="a.texto" />
+            }
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div class="col-lg-8">
+      <section aria-labelledby="tituloListaClientes">
+        <h2 id="tituloListaClientes" class="visually-hidden">Listado de clientes</h2>
+        <div class="row g-2 align-items-center mb-2">
+          <div class="col-sm-7">
+            <label for="buscarCliente" class="visually-hidden">Buscar cliente</label>
+            <input type="search" class="form-control" id="buscarCliente" placeholder="Buscar por nombre o teléfono" [formControl]="busqueda" />
+          </div>
+          <div class="col-sm-5 d-flex justify-content-between align-items-center">
+            <div class="form-check mb-0">
+              <input class="form-check-input" type="checkbox" id="mostrarInactivos" [formControl]="inactivos" />
+              <label class="form-check-label" for="mostrarInactivos">Mostrar dados de baja</label>
+            </div>
+            <small id="contadorClientes" class="text-muted">{{ contador() }}</small>
+          </div>
+        </div>
+
+        <div id="aviso-clientes" class="mb-2" aria-live="polite">
+          @if (avisoLista(); as a) {
+            <app-aviso [tipo]="a.tipo" [texto]="a.texto" />
+          }
+        </div>
+
+        <div class="table-responsive">
+          <table class="table table-hover align-middle bg-white">
+            <thead>
+              <tr>
+                <th scope="col">ID</th>
+                <th scope="col">Cliente</th>
+                <th scope="col">Teléfono</th>
+                <th scope="col">Estado</th>
+                <th scope="col">Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="tablaClientes" [attr.aria-busy]="lista.isLoading()">
+              @if (errorLista(); as e) {
+                <tr>
+                  <td class="text-danger" colspan="5">
+                    {{ e }}
+                    <button type="button" class="btn btn-sm btn-outline-danger ms-2" (click)="lista.reload()">Reintentar</button>
+                  </td>
+                </tr>
+              } @else if (lista.hasValue()) {
+                @for (c of lista.value(); track c.id) {
+                  <tr [class.table-light]="!c.activo" [class.text-muted]="!c.activo" [attr.data-cliente]="c.id">
+                    <td>{{ c.id }}</td>
+                    <td>
+                      <div class="fw-semibold">{{ c.nombre }}</div>
+                      @if (c.cumpleanos) {
+                        <small class="text-muted d-block">Cumpleaños: {{ c.cumpleanos }}</small>
+                      }
+                      @if (c.observaciones) {
+                        <small class="text-muted d-block text-truncate observaciones" [title]="c.observaciones">{{ c.observaciones }}</small>
+                      }
+                    </td>
+                    <td class="text-nowrap">{{ c.telefono | telefono }}</td>
+                    <td>
+                      <span class="badge" [class.text-bg-success]="c.activo" [class.text-bg-secondary]="!c.activo">{{ c.activo ? 'activo' : 'baja' }}</span>
+                    </td>
+                    <td class="text-nowrap">
+                      <div class="d-flex gap-1">
+                        <button type="button" class="btn btn-sm btn-outline-primary" [attr.aria-label]="'Ver historial de ' + c.nombre" (click)="verHistorial(c)">
+                          Historial
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" [attr.aria-label]="'Editar a ' + c.nombre" (click)="editar(c)">
+                          Editar
+                        </button>
+                        @if (c.activo) {
+                          <button type="button" class="btn btn-sm btn-outline-danger" [attr.aria-label]="'Dar de baja a ' + c.nombre" (click)="darDeBaja(c)">
+                            Baja
+                          </button>
+                        } @else {
+                          <button type="button" class="btn btn-sm btn-outline-success" [attr.aria-label]="'Reactivar a ' + c.nombre" (click)="reactivar(c)">
+                            Reactivar
+                          </button>
+                        }
+                      </div>
+                    </td>
+                  </tr>
+                } @empty {
+                  <tr>
+                    <td colspan="5" class="text-center text-muted">Sin resultados.</td>
+                  </tr>
+                }
+              }
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      @if (historial(); as h) {
+        <app-historial-cliente [historial]="h" (cerrar)="cerrarHistorial()" />
+      }
+    </div>
+  </div>
+</main>

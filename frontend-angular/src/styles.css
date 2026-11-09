@@ -1,0 +1,15 @@
+/* Estilos globales. El orden es el mismo que en las páginas nativas:
+   Bootstrap → Font Awesome → base (antes estilo_dashboard.css) → tema (tokens y áreas). */
+@import 'bootstrap/dist/css/bootstrap.min.css';
+@import '@fortawesome/fontawesome-free/css/all.min.css';
+@import './estilos/base.css';
+@import './estilos/tema-estetica.css';
+
+/* Angular agrega un elemento por cada componente (<app-root>, <app-servicios>…).
+   `display: contents` hace que no ocupen caja: <nav>, <main> y <footer> siguen siendo
+   hijos visuales de <body> (layout flex de base.css) y selectores como
+   `main > section > h1` siguen aplicando igual que en la versión nativa. */
+app-root,
+.pagina {
+    display: contents;
+}

@@ -1,0 +1,5 @@
+/* Botones de horario disponibles (antes en tema-estetica.css). Encapsulado: solo esta página. */
+#sugerencias .btn-outline-primary {
+    min-width: 4.5rem;
+    font-variant-numeric: tabular-nums;
+}

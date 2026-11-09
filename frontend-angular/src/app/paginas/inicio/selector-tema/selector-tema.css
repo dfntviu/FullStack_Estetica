@@ -1,0 +1,109 @@
+.selector-tema {
+    margin: 2.5rem 0 1rem;
+    padding: 1.25rem;
+    border: 1px solid var(--color-borde);
+    border-top: 3px solid var(--color-detalle);
+    border-radius: var(--radio-md);
+    background: var(--color-superficie);
+    box-shadow: var(--sombra-sm);
+}
+
+legend {
+    float: none;
+    width: auto;
+    margin: 0;
+    font-family: var(--fuente-titulos);
+    font-size: 1.25rem;
+    color: var(--color-texto);
+}
+
+.ayuda {
+    margin: 0.25rem 0 1rem;
+    font-size: 0.9rem;
+    color: var(--color-texto-suave);
+}
+
+.opciones {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+    gap: 0.75rem;
+}
+
+.opcion {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    padding: 0.9rem 1rem;
+    border: 2px solid var(--color-borde);
+    border-radius: var(--radio-md);
+    background: var(--color-fondo);
+    cursor: pointer;
+    transition: border-color var(--transicion), background-color var(--transicion), transform var(--transicion);
+}
+
+.opcion:hover {
+    border-color: var(--color-borde-fuerte);
+    transform: translateY(-1px);
+}
+
+/* El radio queda accesible (teclado y lector de pantalla) pero invisible: la tarjeta es el control */
+.opcion input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.opcion:has(input:focus-visible) {
+    box-shadow: var(--anillo-foco);
+}
+
+.opcion.elegida {
+    border-color: var(--color-accion);
+    background: var(--color-accion-suave);
+}
+
+.opcion.elegida::after {
+    content: "✓ En uso";
+    position: absolute;
+    top: 0.6rem;
+    right: 0.8rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--color-enlace);
+}
+
+.muestras {
+    display: flex;
+    gap: 0.3rem;
+    margin-bottom: 0.4rem;
+}
+
+.muestra {
+    width: 1.4rem;
+    height: 1.4rem;
+    border-radius: 50%;
+    border: 2px solid var(--color-superficie);
+    box-shadow: 0 0 0 1px var(--color-borde-fuerte);
+}
+
+.nombre {
+    font-weight: 600;
+    color: var(--color-texto);
+}
+
+.animo {
+    font-size: 0.9rem;
+    color: var(--color-enlace);
+}
+
+.descripcion {
+    font-size: 0.85rem;
+    color: var(--color-texto-suave);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .opcion:hover {
+        transform: none;
+    }
+}
